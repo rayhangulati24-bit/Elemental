@@ -35,16 +35,26 @@ socket.on('init', id => {
 socket.on('state', state => {
   for (let id in state) {
     if (!players[id]) {
-      // Assign color
-      players[id] = {x: state[id].x, y: state[id].y, color: id === localId ? 'red' : 'blue', velY:0, onGround:false};
+      // Assign color and initialize target position
+      players[id] = {
+        x: state[id].x,
+        y: state[id].y,
+        targetX: state[id].x,
+        targetY: state[id].y,
+        color: id === localId ? 'red' : 'blue',
+        velY:0,
+        onGround:false
+      };
     } else {
-      players[id].x = state[id].x;
-      players[id].y = state[id].y;
+      // Update target position for smoothing
+      players[id].targetX = state[id].x;
+      players[id].targetY = state[id].y;
       players[id].velY = state[id].velY;
       players[id].onGround = state[id].onGround;
     }
   }
 });
+
 
 // Player movement
 function updatePlayer(player) {
@@ -99,14 +109,30 @@ function gameLoop() {
   // Draw hazards
   for (let h of hazards) ctx.fillStyle=h.type==='fire'?'orange':'cyan', ctx.fillRect(h.x,h.y,h.w,h.h);
 
+
+  for (let id in players) {
+    let p = players[id];
+    if (id !== localId) { // only smooth remote players
+        p.x += (p.targetX - p.x) * 0.2;
+        p.y += (p.targetY - p.y) * 0.2;
+    }
+}
+
   // Update and draw players
   for (let id in players) {
     let p = players[id];
     p.id = id;
-    updatePlayer(p);
+
+    // Only run physics for your own player
+    if (id === localId) {
+        updatePlayer(p);
+    }
+
     ctx.fillStyle = p.color;
     ctx.fillRect(p.x, p.y, playerWidth, playerHeight);
+
   }
+
 
   // Send local state
   if (localId && players[localId]) {
