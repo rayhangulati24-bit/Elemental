@@ -1,5 +1,8 @@
 const socket = io();
 
+let cameraX = 0;
+let cameraY = 0;
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -119,19 +122,29 @@ function updatePlayer(player) {
 function gameLoop() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
+  function gameLoop() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Title text
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("Rayhan ❤️ Riya", 20, 30);
+
   // Draw platforms
   ctx.fillStyle='white';
-  for (let p of platforms) ctx.fillRect(p.x,p.y,p.w,p.h);
+  for (let p of platforms) ctx.fillRect(p.x - cameraX,p.y - cameraY,p.w,p.h);
 
+  // Draw platforms
+  ctx.fillStyle='white';
+  for (let p of platforms) ctx.fillRect(p.x - cameraX,p.y - cameraY,p.w,p.h);
   // Draw hazards
-  for (let h of hazards) ctx.fillStyle=h.type==='fire'?'orange':'cyan', ctx.fillRect(h.x,h.y,h.w,h.h);
+  for (let h of hazards) ctx.fillStyle=h.type==='fire'?'orange':'cyan', ctx.fillRect(h.x - cameraX,h.y - cameraY,h.w,h.h);
 
   // Draw doors
   ctx.fillStyle = 'red';
-  ctx.fillRect(doors.fire.x, doors.fire.y, doors.fire.w, doors.fire.h);
-
+  ctx.fillRect(doors.fire.x - cameraX, doors.fire.y - cameraY, doors.fire.w, doors.fire.h);
   ctx.fillStyle = 'blue';
-  ctx.fillRect(doors.water.x, doors.water.y, doors.water.w, doors.water.h);
+  ctx.fillRect(doors.water.x - cameraX, doors.water.y - cameraY, doors.water.w, doors.water.h);
 
 
   for (let id in players) {
@@ -174,7 +187,17 @@ function gameLoop() {
 
   }
 
-
+  // Make the camera follow the local player
+  if (localId && players[localId]) {
+    const p = players[localId];
+    
+    // Center the camera on the player
+    cameraX += ((p.x - canvas.width / 2 + playerWidth / 2) - cameraX) * 0.1;
+    cameraY += ((p.y - canvas.height / 2 + playerHeight / 2) - cameraY) * 0.1;
+    // Optional: prevent camera from showing empty space outside level
+    if (cameraX < 0) cameraX = 0;
+    if (cameraY < 0) cameraY = 0;
+  }
   // Send local state
   if (localId && players[localId]) {
     socket.emit('move', {x:players[localId].x, y:players[localId].y, velY:players[localId].velY, onGround:players[localId].onGround});
