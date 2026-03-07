@@ -3,6 +3,14 @@ const socket = io();
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
 const keys = {};
 document.addEventListener('keydown', e => keys[e.key] = true);
 document.addEventListener('keyup', e => keys[e.key] = false);
@@ -14,15 +22,24 @@ const playerHeight = 50;
 const gravity = 0.5;
 
 const platforms = [
-  {x:0, y:550, w:800, h:50},
+  {x:0, y:canvas.height - 50, w:canvas.width, h:50},
   {x:200, y:450, w:200, h:20},
   {x:500, y:350, w:200, h:20}
 ];
+
 
 const hazards = [
   {type:'fire', x:250, y:530, w:100, h:20},
   {type:'water', x:550, y:330, w:100, h:20}
 ];
+
+const doors = {
+  fire: {x: canvas.width - 120, y: canvas.height - 100, w:50, h:70},
+  water: {x: canvas.width - 60, y: canvas.height - 100, w:50, h:70}
+};
+
+let fireAtDoor = false;
+let waterAtDoor = false;
 
 let localId = null;
 
@@ -109,6 +126,13 @@ function gameLoop() {
   // Draw hazards
   for (let h of hazards) ctx.fillStyle=h.type==='fire'?'orange':'cyan', ctx.fillRect(h.x,h.y,h.w,h.h);
 
+  // Draw doors
+  ctx.fillStyle = 'red';
+  ctx.fillRect(doors.fire.x, doors.fire.y, doors.fire.w, doors.fire.h);
+
+  ctx.fillStyle = 'blue';
+  ctx.fillRect(doors.water.x, doors.water.y, doors.water.w, doors.water.h);
+
 
   for (let id in players) {
     let p = players[id];
@@ -122,6 +146,23 @@ function gameLoop() {
   for (let id in players) {
     let p = players[id];
     p.id = id;
+
+    // Door collision
+    if (p.color === 'red') {
+    fireAtDoor =
+      p.x < doors.fire.x + doors.fire.w &&
+      p.x + playerWidth > doors.fire.x &&
+      p.y < doors.fire.y + doors.fire.h &&
+      p.y + playerHeight > doors.fire.y;
+  }
+
+    if (p.color === 'blue') {
+    waterAtDoor =
+      p.x < doors.water.x + doors.water.w &&
+      p.x + playerWidth > doors.water.x &&
+      p.y < doors.water.y + doors.water.h &&
+      p.y + playerHeight > doors.water.y;
+  }
 
     // Only run physics for your own player
     if (id === localId) {
@@ -138,7 +179,11 @@ function gameLoop() {
   if (localId && players[localId]) {
     socket.emit('move', {x:players[localId].x, y:players[localId].y, velY:players[localId].velY, onGround:players[localId].onGround});
   }
-
+    if (fireAtDoor && waterAtDoor) {
+    ctx.fillStyle = "white";
+    ctx.font = "50px Arial";
+    ctx.fillText("LEVEL COMPLETE ❤️", canvas.width/2 - 200, canvas.height/2);
+  }
   requestAnimationFrame(gameLoop);
 }
 
