@@ -177,8 +177,12 @@ function gameLoop() {
         if (id === localId) updatePlayer(p);
 
         // Draw player (replace with sprite when ready)
-        if (p.color==='red') ctx.drawImage(fireImg, p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
-        else ctx.drawImage(waterImg, p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
+        
+        
+        //if (p.color==='red') ctx.drawImage(fireImg, p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
+        //selse ctx.drawImage(waterImg, p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
     }
 
     // Camera follow
