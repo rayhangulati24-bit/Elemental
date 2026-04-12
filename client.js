@@ -48,16 +48,6 @@ const doors = {
 let fireAtDoor = false;
 let waterAtDoor = false;
 
-// Wrong-hazard timer → laser barrage (guns fire in random directions)
-const WRONG_HAZARD_MS = 10000;
-let wrongHazardMs = 0;
-let lastFrameTime = performance.now();
-let laserBarrageEnd = 0;
-/** @type {{ x: number, y: number }[]} */
-let laserGuns = [];
-/** @type {{ x: number, y: number, vx: number, vy: number, life: number }[]} */
-let lasers = [];
-
 // Local player ID
 let localId = null;
 
@@ -93,69 +83,6 @@ socket.on('state', state => {
     }
 });
 
-function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
-    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-}
-
-function isInWrongHazard(player) {
-    for (let h of hazards) {
-        if (!rectsOverlap(player.x, player.y, playerWidth, playerHeight, h.x, h.y, h.w, h.h)) continue;
-        if ((player.color === 'red' && h.type === 'water') ||
-            (player.color === 'blue' && h.type === 'fire')) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function respawnPlayer(player) {
-    if (player.color === 'red') {
-        player.x = 100;
-        player.y = 400;
-        player.velY = 0;
-    } else {
-        player.x = 600;
-        player.y = 400;
-        player.velY = 0;
-    }
-}
-
-function startLaserBarrage(player) {
-    const spread = 380;
-    laserGuns = [
-        { x: player.x - spread, y: player.y - spread },
-        { x: player.x + spread, y: player.y - spread },
-        { x: player.x - spread, y: player.y + spread },
-        { x: player.x + spread, y: player.y + spread }
-    ];
-    lasers = [];
-    laserBarrageEnd = performance.now() + 5500;
-}
-
-function spawnLaserBolt() {
-    if (!laserGuns.length) return;
-    const gun = laserGuns[(Math.random() * laserGuns.length) | 0];
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 11 + Math.random() * 6;
-    lasers.push({
-        x: gun.x,
-        y: gun.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 100
-    });
-}
-
-function laserHitsPlayer(l, player) {
-    const tipX = l.x;
-    const tipY = l.y;
-    const r = 10;
-    return rectsOverlap(
-        player.x, player.y, playerWidth, playerHeight,
-        tipX - r, tipY - r, r * 2, r * 2
-    );
-}
-
 // Player physics
 function updatePlayer(player) {
     if (player.id === localId) {
@@ -183,15 +110,21 @@ function updatePlayer(player) {
         }
     }
 
-    // Wrong-colour hazards no longer instant-kill: timer in gameLoop → laser barrage
+    // Hazard collision
+    for (let h of hazards) {
+        if (rect.x < h.x + h.w && rect.x + rect.w > h.x &&
+            rect.y < h.y + h.h && rect.y + rect.h > h.y) {
+            if ((player.color === 'red' && h.type==='water') || 
+                (player.color==='blue' && h.type==='fire')) {
+                if (player.color === 'red') { player.x=100; player.y=400; player.velY=0; }
+                else { player.x=600; player.y=400; player.velY=0; }
+            }
+        }
+    }
 }
 
 // Game loop
 function gameLoop() {
-    const now = performance.now();
-    const dt = Math.min(50, now - lastFrameTime);
-    lastFrameTime = now;
-
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
     // Title text
@@ -243,21 +176,6 @@ function gameLoop() {
         // Physics for local player
         if (id === localId) updatePlayer(p);
 
-        // Wrong hazard → 10s → lasers (local only)
-        if (id === localId) {
-            if (now < laserBarrageEnd) {
-                wrongHazardMs = 0;
-            } else if (isInWrongHazard(p)) {
-                wrongHazardMs += dt;
-                if (wrongHazardMs >= WRONG_HAZARD_MS) {
-                    wrongHazardMs = 0;
-                    startLaserBarrage(p);
-                }
-            } else {
-                wrongHazardMs = 0;
-            }
-        }
-
         // Draw player (replace with sprite when ready)
         ctx.fillStyle = p.color;
         ctx.fillRect(p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
@@ -274,64 +192,6 @@ function gameLoop() {
         cameraY += ((p.y - canvas.height/2 + playerHeight/2) - cameraY) * 0.1;
         if (cameraX < 0) cameraX = 0;
         if (cameraY < 0) cameraY = 0;
-    }
-
-    // Laser barrage: guns + bolts (world space)
-    if (now < laserBarrageEnd && laserGuns.length) {
-        if (Math.random() < 0.22) spawnLaserBolt();
-
-        ctx.lineWidth = 2;
-        for (const g of laserGuns) {
-            const sx = g.x - cameraX;
-            const sy = g.y - cameraY;
-            ctx.fillStyle = '#444';
-            ctx.strokeStyle = '#888';
-            ctx.fillRect(sx - 14, sy - 8, 28, 16);
-            ctx.strokeRect(sx - 14, sy - 8, 28, 16);
-            ctx.fillStyle = '#222';
-            ctx.fillRect(sx - 4, sy - 14, 8, 10);
-        }
-
-        const lp = localId ? players[localId] : null;
-        for (let i = lasers.length - 1; i >= 0; i--) {
-            const L = lasers[i];
-            L.x += L.vx;
-            L.y += L.vy;
-            L.life--;
-
-            ctx.save();
-            ctx.strokeStyle = 'rgba(255, 0, 220, 0.95)';
-            ctx.lineWidth = 4;
-            ctx.shadowColor = '#ff00ff';
-            ctx.shadowBlur = 12;
-            ctx.beginPath();
-            ctx.moveTo(L.x - L.vx * 2.2 - cameraX, L.y - L.vy * 2.2 - cameraY);
-            ctx.lineTo(L.x - cameraX, L.y - cameraY);
-            ctx.stroke();
-            ctx.restore();
-
-            if (lp && laserHitsPlayer(L, lp)) {
-                respawnPlayer(lp);
-                lasers = [];
-                laserGuns = [];
-                laserBarrageEnd = 0;
-                wrongHazardMs = 0;
-                break;
-            }
-            if (L.life <= 0) lasers.splice(i, 1);
-        }
-    } else if (now >= laserBarrageEnd) {
-        lasers = [];
-        laserGuns = [];
-    }
-
-    // HUD: wrong hazard buildup
-    if (localId && players[localId] && wrongHazardMs > 0 && now >= laserBarrageEnd) {
-        const t = wrongHazardMs / WRONG_HAZARD_MS;
-        ctx.fillStyle = 'rgba(255,80,80,0.35)';
-        ctx.fillRect(20, canvas.height - 36, (canvas.width - 40) * t, 10);
-        ctx.strokeStyle = 'rgba(255,200,200,0.6)';
-        ctx.strokeRect(20, canvas.height - 36, canvas.width - 40, 10);
     }
 
     // Send local state
