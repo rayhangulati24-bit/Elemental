@@ -48,10 +48,9 @@ const doors = {
 let fireAtDoor = false;
 let waterAtDoor = false;
 
-// Wrong-hazard timer → laser barrage (guns fire in random directions)
-const WRONG_HAZARD_MS = 10000;
-let wrongHazardMs = 0;
-let lastFrameTime = performance.now();
+// Wrong-hazard contact → instant laser barrage for LASER_BARRAGE_MS
+const LASER_BARRAGE_MS = 10000;
+let prevWrongHazard = false;
 let laserBarrageEnd = 0;
 /** @type {{ x: number, y: number }[]} */
 let laserGuns = [];
@@ -129,7 +128,7 @@ function startLaserBarrage(player) {
         { x: player.x + spread, y: player.y + spread }
     ];
     lasers = [];
-    laserBarrageEnd = performance.now() + 5500;
+    laserBarrageEnd = performance.now() + LASER_BARRAGE_MS;
 }
 
 function spawnLaserBolt() {
@@ -183,14 +182,12 @@ function updatePlayer(player) {
         }
     }
 
-    // Wrong-colour hazards no longer instant-kill: timer in gameLoop → laser barrage
+    // Wrong-colour hazards: laser barrage triggered from gameLoop on contact
 }
 
 // Game loop
 function gameLoop() {
     const now = performance.now();
-    const dt = Math.min(50, now - lastFrameTime);
-    lastFrameTime = now;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -243,19 +240,13 @@ function gameLoop() {
         // Physics for local player
         if (id === localId) updatePlayer(p);
 
-        // Wrong hazard → 10s → lasers (local only)
+        // Wrong hazard → instant lasers for LASER_BARRAGE_MS (local only, rising edge)
         if (id === localId) {
-            if (now < laserBarrageEnd) {
-                wrongHazardMs = 0;
-            } else if (isInWrongHazard(p)) {
-                wrongHazardMs += dt;
-                if (wrongHazardMs >= WRONG_HAZARD_MS) {
-                    wrongHazardMs = 0;
-                    startLaserBarrage(p);
-                }
-            } else {
-                wrongHazardMs = 0;
+            const wrong = isInWrongHazard(p);
+            if (now >= laserBarrageEnd && wrong && !prevWrongHazard) {
+                startLaserBarrage(p);
             }
+            prevWrongHazard = wrong;
         }
 
         // Draw player (replace with sprite when ready)
@@ -315,7 +306,6 @@ function gameLoop() {
                 lasers = [];
                 laserGuns = [];
                 laserBarrageEnd = 0;
-                wrongHazardMs = 0;
                 break;
             }
             if (L.life <= 0) lasers.splice(i, 1);
@@ -323,15 +313,6 @@ function gameLoop() {
     } else if (now >= laserBarrageEnd) {
         lasers = [];
         laserGuns = [];
-    }
-
-    // HUD: wrong hazard buildup
-    if (localId && players[localId] && wrongHazardMs > 0 && now >= laserBarrageEnd) {
-        const t = wrongHazardMs / WRONG_HAZARD_MS;
-        ctx.fillStyle = 'rgba(255,80,80,0.35)';
-        ctx.fillRect(20, canvas.height - 36, (canvas.width - 40) * t, 10);
-        ctx.strokeStyle = 'rgba(255,200,200,0.6)';
-        ctx.strokeRect(20, canvas.height - 36, canvas.width - 40, 10);
     }
 
     // Send local state
