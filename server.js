@@ -26,7 +26,8 @@ function firstLanIPv4() {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      if (net && net.family === 'IPv4' && !net.internal) return net.address;
+      const v4 = net.family === 'IPv4' || net.family === 4;
+      if (net && v4 && !net.internal) return net.address;
     }
   }
   return null;

@@ -7,13 +7,21 @@ let cameraY = 0;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+/** Layout baseline height used for proportional platforms / water hazard */
+const REF_H = 600;
+
 function syncLevelLayout() {
     const w = canvas.width;
     const h = canvas.height;
+    const r = h / REF_H;
     if (platforms[0]) {
         platforms[0].y = h - 50;
         platforms[0].w = w;
     }
+    if (platforms[1]) platforms[1].y = Math.round(450 * r);
+    if (platforms[2]) platforms[2].y = Math.round(350 * r);
+    if (hazards[0]) hazards[0].y = h - 70;
+    if (hazards[1]) hazards[1].y = Math.round(330 * r);
     doors.fire.x = w - 120;
     doors.fire.y = h - 100;
     doors.water.x = w - 60;
@@ -236,12 +244,15 @@ function updatePlayer(player) {
         }
     }
 
-    // Wrong-colour hazards no longer instant-kill: timer in gameLoop → laser barrage
+    // Wrong-colour hazards: no instant kill; lasers handled in gameLoop
 }
 
 // Game loop
 function gameLoop() {
     const now = performance.now();
+
+    fireAtDoor = false;
+    waterAtDoor = false;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
