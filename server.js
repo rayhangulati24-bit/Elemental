@@ -33,8 +33,12 @@ function firstLanIPv4() {
   return null;
 }
 
-http.listen(3000, '0.0.0.0', () => {
-  console.log('Server running on http://localhost:3000');
+const PORT = Number(process.env.PORT) || 3000;
+
+http.listen(PORT, '0.0.0.0', () => {
+  console.log('Server listening on port', PORT);
   const lan = firstLanIPv4();
-  if (lan) console.log('iPad / phone (same WiFi): http://' + lan + ':3000');
+  if (lan && PORT === 3000) {
+    console.log('iPad / phone (same WiFi): http://' + lan + ':' + PORT);
+  }
 });
