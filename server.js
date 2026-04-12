@@ -1,5 +1,4 @@
 const express = require('express');
-const os = require('os');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
@@ -22,23 +21,8 @@ setInterval(() => {
   io.emit('state', players);
 }, 1000/60);
 
-function firstLanIPv4() {
-  const nets = os.networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      const v4 = net.family === 'IPv4' || net.family === 4;
-      if (net && v4 && !net.internal) return net.address;
-    }
-  }
-  return null;
-}
-
 const PORT = Number(process.env.PORT) || 3000;
 
 http.listen(PORT, '0.0.0.0', () => {
   console.log('Server listening on port', PORT);
-  const lan = firstLanIPv4();
-  if (lan && PORT === 3000) {
-    console.log('iPad / phone (same WiFi): http://' + lan + ':' + PORT);
-  }
 });

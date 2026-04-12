@@ -36,51 +36,10 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-/** Show on-screen pad when a coarse pointer exists (typical phones / iPad) or small window */
-function syncTouchUi() {
-    const coarse =
-        window.matchMedia('(any-pointer: coarse)').matches ||
-        window.matchMedia('(max-width: 900px)').matches;
-    document.documentElement.classList.toggle('touch-ui', coarse);
-}
-syncTouchUi();
-window.addEventListener('resize', syncTouchUi);
-
 // Key input
 const keys = {};
 document.addEventListener('keydown', e => keys[e.key] = true);
 document.addEventListener('keyup', e => keys[e.key] = false);
-
-// Touch / on-screen controls (iPad, phones)
-const touchPad = { left: false, right: false, jump: false };
-
-function bindHoldButton(el, key) {
-    if (!el) return;
-    const down = e => {
-        e.preventDefault();
-        touchPad[key] = true;
-        try {
-            el.setPointerCapture(e.pointerId);
-        } catch (_) {}
-    };
-    const up = e => {
-        if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
-        touchPad[key] = false;
-    };
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-    el.addEventListener('pointerleave', e => {
-        if (!el.hasPointerCapture?.(e.pointerId)) touchPad[key] = false;
-    });
-    el.addEventListener('lostpointercapture', () => {
-        touchPad[key] = false;
-    });
-}
-
-bindHoldButton(document.getElementById('touchLeft'), 'left');
-bindHoldButton(document.getElementById('touchRight'), 'right');
-bindHoldButton(document.getElementById('touchJump'), 'jump');
 
 // Game variables
 const players = {};
@@ -220,9 +179,9 @@ function laserHitsPlayer(l, player) {
 // Player physics
 function updatePlayer(player) {
     if (player.id === localId) {
-        if (keys['ArrowLeft'] || keys['a'] || touchPad.left) player.x -= 5;
-        if (keys['ArrowRight'] || keys['d'] || touchPad.right) player.x += 5;
-        if ((keys['ArrowUp'] || keys['w'] || touchPad.jump) && player.onGround) {
+        if (keys['ArrowLeft'] || keys['a']) player.x -= 5;
+        if (keys['ArrowRight'] || keys['d']) player.x += 5;
+        if ((keys['ArrowUp'] || keys['w']) && player.onGround) {
             player.velY = -12;
             player.onGround = false;
         }
