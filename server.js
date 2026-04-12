@@ -1,4 +1,5 @@
 const express = require('express');
+const os = require('os');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
@@ -21,4 +22,18 @@ setInterval(() => {
   io.emit('state', players);
 }, 1000/60);
 
-http.listen(3000, () => console.log('Server running on http://localhost:3000'));
+function firstLanIPv4() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net && net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return null;
+}
+
+http.listen(3000, '0.0.0.0', () => {
+  console.log('Server running on http://localhost:3000');
+  const lan = firstLanIPv4();
+  if (lan) console.log('iPad / phone (same WiFi): http://' + lan + ':3000');
+});

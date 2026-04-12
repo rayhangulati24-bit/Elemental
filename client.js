@@ -7,17 +7,72 @@ let cameraY = 0;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+function syncLevelLayout() {
+    const w = canvas.width;
+    const h = canvas.height;
+    if (platforms[0]) {
+        platforms[0].y = h - 50;
+        platforms[0].w = w;
+    }
+    doors.fire.x = w - 120;
+    doors.fire.y = h - 100;
+    doors.water.x = w - 60;
+    doors.water.y = h - 100;
+}
+
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    syncLevelLayout();
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+
+/** Show on-screen pad when a coarse pointer exists (typical phones / iPad) or small window */
+function syncTouchUi() {
+    const coarse =
+        window.matchMedia('(any-pointer: coarse)').matches ||
+        window.matchMedia('(max-width: 900px)').matches;
+    document.documentElement.classList.toggle('touch-ui', coarse);
+}
+syncTouchUi();
+window.addEventListener('resize', syncTouchUi);
 
 // Key input
 const keys = {};
 document.addEventListener('keydown', e => keys[e.key] = true);
 document.addEventListener('keyup', e => keys[e.key] = false);
+
+// Touch / on-screen controls (iPad, phones)
+const touchPad = { left: false, right: false, jump: false };
+
+function bindHoldButton(el, key) {
+    if (!el) return;
+    const down = e => {
+        e.preventDefault();
+        touchPad[key] = true;
+        try {
+            el.setPointerCapture(e.pointerId);
+        } catch (_) {}
+    };
+    const up = e => {
+        if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+        touchPad[key] = false;
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('pointerleave', e => {
+        if (!el.hasPointerCapture?.(e.pointerId)) touchPad[key] = false;
+    });
+    el.addEventListener('lostpointercapture', () => {
+        touchPad[key] = false;
+    });
+}
+
+bindHoldButton(document.getElementById('touchLeft'), 'left');
+bindHoldButton(document.getElementById('touchRight'), 'right');
+bindHoldButton(document.getElementById('touchJump'), 'jump');
 
 // Game variables
 const players = {};
@@ -48,10 +103,8 @@ const doors = {
 let fireAtDoor = false;
 let waterAtDoor = false;
 
-// Wrong-hazard timer → laser barrage (guns fire in random directions)
-const WRONG_HAZARD_MS = 10000;
-let wrongHazardMs = 0;
-let lastFrameTime = performance.now();
+// Wrong hazard: lasers start immediately, fire for 10 seconds
+const LASER_BARRAGE_MS = 10000;
 let laserBarrageEnd = 0;
 /** @type {{ x: number, y: number }[]} */
 let laserGuns = [];
@@ -129,7 +182,7 @@ function startLaserBarrage(player) {
         { x: player.x + spread, y: player.y + spread }
     ];
     lasers = [];
-    laserBarrageEnd = performance.now() + 5500;
+    laserBarrageEnd = performance.now() + LASER_BARRAGE_MS;
 }
 
 function spawnLaserBolt() {
@@ -159,9 +212,9 @@ function laserHitsPlayer(l, player) {
 // Player physics
 function updatePlayer(player) {
     if (player.id === localId) {
-        if (keys['ArrowLeft'] || keys['a']) player.x -= 5;
-        if (keys['ArrowRight'] || keys['d']) player.x += 5;
-        if ((keys['ArrowUp'] || keys['w']) && player.onGround) {
+        if (keys['ArrowLeft'] || keys['a'] || touchPad.left) player.x -= 5;
+        if (keys['ArrowRight'] || keys['d'] || touchPad.right) player.x += 5;
+        if ((keys['ArrowUp'] || keys['w'] || touchPad.jump) && player.onGround) {
             player.velY = -12;
             player.onGround = false;
         }
@@ -189,8 +242,6 @@ function updatePlayer(player) {
 // Game loop
 function gameLoop() {
     const now = performance.now();
-    const dt = Math.min(50, now - lastFrameTime);
-    lastFrameTime = now;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -243,19 +294,9 @@ function gameLoop() {
         // Physics for local player
         if (id === localId) updatePlayer(p);
 
-        // Wrong hazard → 10s → lasers (local only)
-        if (id === localId) {
-            if (now < laserBarrageEnd) {
-                wrongHazardMs = 0;
-            } else if (isInWrongHazard(p)) {
-                wrongHazardMs += dt;
-                if (wrongHazardMs >= WRONG_HAZARD_MS) {
-                    wrongHazardMs = 0;
-                    startLaserBarrage(p);
-                }
-            } else {
-                wrongHazardMs = 0;
-            }
+        // Wrong hazard → lasers immediately; new barrage only after previous 10s ends (local only)
+        if (id === localId && isInWrongHazard(p) && now >= laserBarrageEnd) {
+            startLaserBarrage(p);
         }
 
         // Draw player (replace with sprite when ready)
@@ -315,7 +356,6 @@ function gameLoop() {
                 lasers = [];
                 laserGuns = [];
                 laserBarrageEnd = 0;
-                wrongHazardMs = 0;
                 break;
             }
             if (L.life <= 0) lasers.splice(i, 1);
@@ -323,15 +363,6 @@ function gameLoop() {
     } else if (now >= laserBarrageEnd) {
         lasers = [];
         laserGuns = [];
-    }
-
-    // HUD: wrong hazard buildup
-    if (localId && players[localId] && wrongHazardMs > 0 && now >= laserBarrageEnd) {
-        const t = wrongHazardMs / WRONG_HAZARD_MS;
-        ctx.fillStyle = 'rgba(255,80,80,0.35)';
-        ctx.fillRect(20, canvas.height - 36, (canvas.width - 40) * t, 10);
-        ctx.strokeStyle = 'rgba(255,200,200,0.6)';
-        ctx.strokeRect(20, canvas.height - 36, canvas.width - 40, 10);
     }
 
     // Send local state

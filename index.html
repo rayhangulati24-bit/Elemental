@@ -1,21 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <style>
-body {
-    margin: 0;
-    overflow: hidden;
-}
-canvas {
-    display: block;
-}
-</style>
-<meta charset="UTF-8">
-<title>Fire & Water Online</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+    <title>Fire & Water Online</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="touchControls" aria-label="Touch controls">
+    <div class="touch-pad">
+        <button type="button" class="touch-btn" id="touchLeft" aria-label="Move left">◀</button>
+        <button type="button" class="touch-btn" id="touchRight" aria-label="Move right">▶</button>
+    </div>
+    <button type="button" class="touch-btn touch-btn-jump" id="touchJump" aria-label="Jump">Jump</button>
+</div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="client.js"></script>
 </body>
