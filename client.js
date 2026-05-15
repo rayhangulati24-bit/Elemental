@@ -24,12 +24,14 @@ const players = {};
 const playerWidth = 40;
 const playerHeight = 50;
 const gravity = 0.5;
+const jumpVelocity = -12 * Math.sqrt(1.2); // 20% higher jump
 
 // Platforms (you can add more)
 const platforms = [
   {x:0, y:canvas.height - 50, w:canvas.width, h:50},
   {x:200, y:450, w:200, h:20},
   {x:500, y:350, w:200, h:20},
+  {x:700, y:350, w:200, h:20},
   {x:120, y:canvas.height - 120, w:180, h:20},
   {x: canvas.width - 145, y: canvas.height - 420, w: 20, h: 370}
 ];
@@ -37,7 +39,8 @@ const platforms = [
 // Hazards (fire & water)
 const hazards = [
   {type:'fire', x:250, y:430, w:100, h:20},
-  {type:'water', x:550, y:330, w:100, h:20}
+  {type:'water', x:550, y:330, w:100, h:20},
+  {type:'fire', x:750, y:330, w:100, h:20}
 ];
 
 // Doors
@@ -232,7 +235,7 @@ function updatePlayer(player) {
         if (keys['ArrowLeft'] || keys['a']) player.x -= 5;
         if (keys['ArrowRight'] || keys['d']) player.x += 5;
         if ((keys['ArrowUp'] || keys['w']) && player.onGround) {
-            player.velY = -12;
+            player.velY = jumpVelocity;
             player.onGround = false;
         }
     }
