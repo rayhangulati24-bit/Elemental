@@ -10,6 +10,11 @@ body {
 canvas {
   border: 2px solid #fff;
   background: #222;
+  position: relative;
+  z-index: 1;
+}
+canvas.selecting {
+  pointer-events: none;
 }
 .character-select {
   position: fixed;

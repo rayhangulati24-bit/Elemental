@@ -41,6 +41,16 @@ let worldTransitionUntil = 0;
 let fireAtDoor = false;
 let waterAtDoor = false;
 
+// Laser barrage (must be declared before loadWorld)
+const LASER_BARRAGE_MS = 10000;
+let prevWrongHazard = false;
+let laserBarrageEnd = 0;
+let laserGuns = [];
+let lasers = [];
+const MAX_LASERS = 50;
+const NET_SEND_MS = 1000 / 30;
+let lastNetSend = 0;
+
 function buildWorld1() {
     const h = canvas.height;
     const w = canvas.width;
@@ -107,8 +117,6 @@ function loadWorld(world) {
     prevWrongHazard = false;
 }
 
-loadWorld(1);
-
 function localAtDoor() {
     const lp = localId && players[localId];
     if (!lp) return false;
@@ -123,18 +131,6 @@ function localAtDoor() {
     return false;
 }
 
-// Wrong-hazard contact → instant laser barrage for LASER_BARRAGE_MS
-const LASER_BARRAGE_MS = 10000;
-let prevWrongHazard = false;
-let laserBarrageEnd = 0;
-/** @type {{ x: number, y: number }[]} */
-let laserGuns = [];
-/** @type {{ x: number, y: number, vx: number, vy: number, life: number }[]} */
-let lasers = [];
-const MAX_LASERS = 50;
-const NET_SEND_MS = 1000 / 30;
-let lastNetSend = 0;
-
 // Local player ID
 let localId = null;
 let gameStarted = false;
@@ -144,13 +140,16 @@ const pickFire = document.getElementById('pickFire');
 const pickWater = document.getElementById('pickWater');
 const selectStatus = document.getElementById('selectStatus');
 
+canvas.classList.add('selecting');
+
 function updateCharacterSelectUI(state) {
-    if (!pickFire || !pickWater) return;
+    if (!pickFire || !pickWater || !state || typeof state !== 'object') return;
     let fireTaken = false;
     let waterTaken = false;
     for (const id in state) {
+        if (id === 'world' || id === 'players') continue;
         if (id === localId) continue;
-        const el = state[id].element;
+        const el = state[id]?.element;
         if (el === 'fire') fireTaken = true;
         if (el === 'water') waterTaken = true;
     }
@@ -160,6 +159,7 @@ function updateCharacterSelectUI(state) {
 
 function hideCharacterSelect() {
     characterSelect?.classList.add('hidden');
+    canvas.classList.remove('selecting');
 }
 
 pickFire?.addEventListener('click', () => {
@@ -170,6 +170,8 @@ pickWater?.addEventListener('click', () => {
     selectStatus.textContent = '';
     socket.emit('chooseCharacter', { element: 'water' });
 });
+
+loadWorld(1);
 
 socket.on('chooseOk', ({ color, element }) => {
     gameStarted = true;
