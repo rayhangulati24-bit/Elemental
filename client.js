@@ -26,7 +26,6 @@ const playerHeight = 50;
 const gravity = 0.5;
 const jumpVelocity = -12 * Math.sqrt(1.2); // 20% higher jump
 
-const midStepY = (canvas.height - 120 + 350) / 2;
 const GROUND_LEFT_EXTEND = 800;
 const FIRE_SPAWN_X = -GROUND_LEFT_EXTEND + 200;
 const WATER_SPAWN_X = -GROUND_LEFT_EXTEND + 450;
@@ -34,32 +33,95 @@ function spawnY() {
     return canvas.height - 50 - playerHeight;
 }
 
-// Platforms (you can add more)
-const platforms = [
-  {x: -GROUND_LEFT_EXTEND, y: canvas.height - 50, w: canvas.width + GROUND_LEFT_EXTEND, h: 50},
-  {x:200, y:midStepY, w:200, h:20},
-  {x:500, y:350, w:200, h:20},
-  {x:820, y:350, w:200, h:20},
-  {x:120, y:canvas.height - 120, w:180, h:20},
-  {x: canvas.width - 145, y: canvas.height - 420, w: 20, h: 370}
-];
-
-// Hazards (fire & water)
-const hazards = [
-  {type:'fire', x:250, y:midStepY - 20, w:100, h:20},
-  {type:'water', x:550, y:330, w:100, h:20},
-  {type:'fire', x:870, y:330, w:100, h:20}
-];
-
-// Doors
-const doors = {
-  fire: {x: canvas.width - 120, y: canvas.height - 100, w:50, h:70},
-  water: {x: canvas.width - 60, y: canvas.height - 100, w:50, h:70}
-};
-
-// Door state
+let currentWorld = 1;
+let platforms = [];
+let hazards = [];
+let doors = {};
+let worldTransitionUntil = 0;
 let fireAtDoor = false;
 let waterAtDoor = false;
+
+function buildWorld1() {
+    const h = canvas.height;
+    const w = canvas.width;
+    const midStepY = (h - 120 + 350) / 2;
+    return {
+        platforms: [
+            { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND, h: 50 },
+            { x: 200, y: midStepY, w: 200, h: 20 },
+            { x: 500, y: 350, w: 200, h: 20 },
+            { x: 820, y: 350, w: 200, h: 20 },
+            { x: 120, y: h - 120, w: 180, h: 20 },
+            { x: w - 145, y: h - 420, w: 20, h: 370 }
+        ],
+        hazards: [
+            { type: 'fire', x: 250, y: midStepY - 20, w: 100, h: 20 },
+            { type: 'water', x: 550, y: 330, w: 100, h: 20 },
+            { type: 'fire', x: 870, y: 330, w: 100, h: 20 }
+        ],
+        doors: {
+            fire: { x: w - 120, y: h - 100, w: 50, h: 70 },
+            water: { x: w - 60, y: h - 100, w: 50, h: 70 }
+        }
+    };
+}
+
+function buildWorld2() {
+    const h = canvas.height;
+    const w = canvas.width;
+    return {
+        platforms: [
+            { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND + 300, h: 50 },
+            { x: 0, y: h - 140, w: 220, h: 20 },
+            { x: 300, y: h - 240, w: 220, h: 20 },
+            { x: 600, y: h - 340, w: 220, h: 20 },
+            { x: 920, y: h - 340, w: 200, h: 20 },
+            { x: w - 145, y: h - 420, w: 20, h: 370 }
+        ],
+        hazards: [
+            { type: 'fire', x: 50, y: h - 160, w: 100, h: 20 },
+            { type: 'water', x: 360, y: h - 260, w: 100, h: 20 },
+            { type: 'fire', x: 970, y: h - 360, w: 100, h: 20 }
+        ],
+        doors: {
+            fire: { x: w - 120, y: h - 100, w: 50, h: 70 },
+            water: { x: w - 60, y: h - 100, w: 50, h: 70 }
+        }
+    };
+}
+
+function loadWorld(world) {
+    const data = world === 2 ? buildWorld2() : buildWorld1();
+    platforms = data.platforms;
+    hazards = data.hazards;
+    doors = data.doors;
+    if (world !== currentWorld) {
+        worldTransitionUntil = performance.now() + 2500;
+    }
+    currentWorld = world;
+    cameraX = 0;
+    cameraY = 0;
+    lasers = [];
+    laserGuns = [];
+    laserBarrageEnd = 0;
+    prevWrongHazard = false;
+}
+
+loadWorld(1);
+
+function localAtDoor() {
+    const lp = localId && players[localId];
+    if (!lp) return false;
+    if (lp.color === 'red') {
+        return rectsOverlap(lp.x, lp.y, playerWidth, playerHeight,
+            doors.fire.x, doors.fire.y, doors.fire.w, doors.fire.h);
+    }
+    if (lp.color === 'blue') {
+        return rectsOverlap(lp.x, lp.y, playerWidth, playerHeight,
+            doors.water.x, doors.water.y, doors.water.w, doors.water.h);
+    }
+    return false;
+}
 
 // Wrong-hazard contact → instant laser barrage for LASER_BARRAGE_MS
 const LASER_BARRAGE_MS = 10000;
@@ -144,7 +206,12 @@ socket.on('init', id => {
     localId = id;
 });
 
-socket.on('state', state => {
+socket.on('state', payload => {
+    const world = payload.world ?? 1;
+    const worldChanged = world !== currentWorld;
+    if (worldChanged) loadWorld(world);
+
+    const state = payload.players ?? payload;
     if (!gameStarted) updateCharacterSelectUI(state);
 
     for (let id in state) {
@@ -171,6 +238,13 @@ socket.on('state', state => {
             players[id].onGround = s.onGround;
             players[id].color = s.color;
             players[id].element = s.element;
+        } else if (worldChanged) {
+            players[id].x = s.x;
+            players[id].y = s.y;
+            players[id].targetX = s.x;
+            players[id].targetY = s.y;
+            players[id].velY = s.velY;
+            players[id].onGround = s.onGround;
         }
     }
 });
@@ -294,10 +368,11 @@ function gameLoop() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Title text (screen space, not world)
+    // Title + world label (screen space)
     ctx.fillStyle = "white";
     ctx.font = "20px Arial";
     ctx.fillText("Rayhan ❤️ Riya", 20, 30);
+    ctx.fillText(`World ${currentWorld}`, 20, 55);
 
     // Draw platforms
     ctx.fillStyle='white';
@@ -395,15 +470,39 @@ function gameLoop() {
             x: lp.x,
             y: lp.y,
             velY: lp.velY,
-            onGround: lp.onGround
+            onGround: lp.onGround,
+            atDoor: localAtDoor()
         });
     }
 
-    // Level complete
-    if (fireAtDoor && waterAtDoor) {
+    // Gate status / world transition
+    if (currentWorld === 1 && gameStarted) {
+        const lp = localId && players[localId];
+        if (lp && localAtDoor() && !(fireAtDoor && waterAtDoor)) {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+            ctx.font = "22px Arial";
+            ctx.fillText("At your gate — waiting for partner...", canvas.width / 2 - 200, 90);
+        }
+    }
+
+    if (now < worldTransitionUntil) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.font = "42px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(`World ${currentWorld}`, canvas.width / 2, canvas.height / 2 - 20);
+        ctx.font = "22px Arial";
+        ctx.fillText("Both players reached their gates!", canvas.width / 2, canvas.height / 2 + 30);
+        ctx.textAlign = "left";
+    }
+
+    if (currentWorld === 2 && fireAtDoor && waterAtDoor) {
         ctx.fillStyle = "white";
         ctx.font = "50px Arial";
-        ctx.fillText("LEVEL COMPLETE ❤️", canvas.width/2 - 200, canvas.height/2);
+        ctx.textAlign = "center";
+        ctx.fillText("WORLD 2 COMPLETE ❤️", canvas.width / 2, canvas.height / 2);
+        ctx.textAlign = "left";
     }
 
     requestAnimationFrame(gameLoop);
