@@ -7,6 +7,10 @@ app.use(express.static(__dirname));
 
 const players = {};
 const elementTaken = { fire: null, water: null };
+const GROUND_LEFT_EXTEND = 800;
+const FIRE_SPAWN_X = -GROUND_LEFT_EXTEND + 200;
+const WATER_SPAWN_X = -GROUND_LEFT_EXTEND + 450;
+const SPAWN_Y = 400;
 
 function freeElement(id) {
   const el = players[id]?.element;
@@ -15,7 +19,7 @@ function freeElement(id) {
 
 io.on('connection', socket => {
   const id = socket.id;
-  players[id] = { x: 100, y: 400, velY: 0, onGround: false, color: null, element: null };
+  players[id] = { x: FIRE_SPAWN_X, y: SPAWN_Y, velY: 0, onGround: false, color: null, element: null };
   socket.emit('init', id);
 
   socket.on('chooseCharacter', ({ element }) => {
@@ -28,9 +32,9 @@ io.on('connection', socket => {
     freeElement(id);
 
     const color = element === 'fire' ? 'red' : 'blue';
-    const x = element === 'fire' ? 100 : 600;
+    const x = element === 'fire' ? FIRE_SPAWN_X : WATER_SPAWN_X;
     elementTaken[element] = id;
-    players[id] = { x, y: 400, velY: 0, onGround: false, color, element };
+    players[id] = { x, y: SPAWN_Y, velY: 0, onGround: false, color, element };
     socket.emit('chooseOk', { color, element });
   });
 

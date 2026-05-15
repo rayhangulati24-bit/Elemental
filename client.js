@@ -27,14 +27,19 @@ const gravity = 0.5;
 const jumpVelocity = -12 * Math.sqrt(1.2); // 20% higher jump
 
 const midStepY = (canvas.height - 120 + 350) / 2;
-const GROUND_LEFT_EXTEND = 400;
+const GROUND_LEFT_EXTEND = 800;
+const FIRE_SPAWN_X = -GROUND_LEFT_EXTEND + 200;
+const WATER_SPAWN_X = -GROUND_LEFT_EXTEND + 450;
+function spawnY() {
+    return canvas.height - 50 - playerHeight;
+}
 
 // Platforms (you can add more)
 const platforms = [
   {x: -GROUND_LEFT_EXTEND, y: canvas.height - 50, w: canvas.width + GROUND_LEFT_EXTEND, h: 50},
   {x:200, y:midStepY, w:200, h:20},
   {x:500, y:350, w:200, h:20},
-  {x:750, y:350, w:200, h:20},
+  {x:820, y:350, w:200, h:20},
   {x:120, y:canvas.height - 120, w:180, h:20},
   {x: canvas.width - 145, y: canvas.height - 420, w: 20, h: 370}
 ];
@@ -43,7 +48,7 @@ const platforms = [
 const hazards = [
   {type:'fire', x:250, y:midStepY - 20, w:100, h:20},
   {type:'water', x:550, y:330, w:100, h:20},
-  {type:'fire', x:800, y:330, w:100, h:20}
+  {type:'fire', x:870, y:330, w:100, h:20}
 ];
 
 // Doors
@@ -108,12 +113,13 @@ socket.on('chooseOk', ({ color, element }) => {
     gameStarted = true;
     hideCharacterSelect();
     if (localId) {
-        const spawnX = element === 'fire' ? 100 : 600;
+        const spawnX = element === 'fire' ? FIRE_SPAWN_X : WATER_SPAWN_X;
+        const y = spawnY();
         players[localId] = {
             x: spawnX,
-            y: 400,
+            y,
             targetX: spawnX,
-            targetY: 400,
+            targetY: y,
             color,
             element,
             velY: 0,
@@ -185,15 +191,9 @@ function isInWrongHazard(player) {
 }
 
 function respawnPlayer(player) {
-    if (player.color === 'red') {
-        player.x = 100;
-        player.y = 400;
-        player.velY = 0;
-    } else {
-        player.x = 600;
-        player.y = 400;
-        player.velY = 0;
-    }
+    player.x = player.color === 'red' ? FIRE_SPAWN_X : WATER_SPAWN_X;
+    player.y = spawnY();
+    player.velY = 0;
 }
 
 function startLaserBarrage(player) {
