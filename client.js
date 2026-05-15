@@ -34,7 +34,7 @@ const platforms = [
 
 // Hazards (fire & water)
 const hazards = [
-  {type:'fire', x:250, y:530, w:100, h:20},
+  {type:'fire', x:250, y:430, w:100, h:20},
   {type:'water', x:550, y:330, w:100, h:20}
 ];
 
