@@ -19,6 +19,6 @@ io.on('connection', socket => {
 
 setInterval(() => {
   io.emit('state', players);
-}, 1000/60);
+}, 1000 / 30);
 
 http.listen(3000, () => console.log('Server running on http://localhost:3000'));

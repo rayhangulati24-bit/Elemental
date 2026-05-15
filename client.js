@@ -56,6 +56,9 @@ let laserBarrageEnd = 0;
 let laserGuns = [];
 /** @type {{ x: number, y: number, vx: number, vy: number, life: number }[]} */
 let lasers = [];
+const MAX_LASERS = 50;
+const NET_SEND_MS = 1000 / 30;
+let lastNetSend = 0;
 
 // Local player ID
 let localId = null;
@@ -83,7 +86,7 @@ socket.on('state', state => {
                 velY:0,
                 onGround:false
             };
-        } else {
+        } else if (id !== localId) {
             players[id].targetX = state[id].x;
             players[id].targetY = state[id].y;
             players[id].velY = state[id].velY;
@@ -189,21 +192,33 @@ function updatePlayer(player) {
 function gameLoop() {
     const now = performance.now();
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Physics + remote interpolation (before camera/draw)
+    for (let id in players) {
+        const p = players[id];
+        p.id = id;
+        if (id === localId) {
+            updatePlayer(p);
+        } else {
+            p.x += (p.targetX - p.x) * 0.35;
+            p.y += (p.targetY - p.y) * 0.35;
+        }
+    }
 
-    // Title text
+    // Camera follow (must run before drawing)
+    if (localId && players[localId]) {
+        const p = players[localId];
+        cameraX += ((p.x - canvas.width / 2 + playerWidth / 2) - cameraX) * 0.15;
+        cameraY += ((p.y - canvas.height / 2 + playerHeight / 2) - cameraY) * 0.15;
+        if (cameraX < 0) cameraX = 0;
+        if (cameraY < 0) cameraY = 0;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Title text (screen space, not world)
     ctx.fillStyle = "white";
     ctx.font = "20px Arial";
     ctx.fillText("Rayhan ❤️ Riya", 20, 30);
-
-    // Smooth remote players
-    for (let id in players) {
-        let p = players[id];
-        if (id !== localId) {
-            p.x += (p.targetX - p.x) * 0.2;
-            p.y += (p.targetY - p.y) * 0.2;
-        }
-    }
 
     // Draw platforms
     ctx.fillStyle='white';
@@ -221,26 +236,22 @@ function gameLoop() {
     ctx.fillStyle='blue';
     ctx.fillRect(doors.water.x - cameraX, doors.water.y - cameraY, doors.water.w, doors.water.h);
 
-    // Update and draw players
+    fireAtDoor = false;
+    waterAtDoor = false;
+
+    // Draw players + door / hazard checks
     for (let id in players) {
-        let p = players[id];
-        p.id = id;
+        const p = players[id];
 
-        // Door collision
-        if (p.color==='red') fireAtDoor = (p.x < doors.fire.x + doors.fire.w &&
-                                           p.x + playerWidth > doors.fire.x &&
-                                           p.y < doors.fire.y + doors.fire.h &&
-                                           p.y + playerHeight > doors.fire.y);
+        if (p.color === 'red') {
+            fireAtDoor = rectsOverlap(p.x, p.y, playerWidth, playerHeight,
+                doors.fire.x, doors.fire.y, doors.fire.w, doors.fire.h);
+        }
+        if (p.color === 'blue') {
+            waterAtDoor = rectsOverlap(p.x, p.y, playerWidth, playerHeight,
+                doors.water.x, doors.water.y, doors.water.w, doors.water.h);
+        }
 
-        if (p.color==='blue') waterAtDoor = (p.x < doors.water.x + doors.water.w &&
-                                             p.x + playerWidth > doors.water.x &&
-                                             p.y < doors.water.y + doors.water.h &&
-                                             p.y + playerHeight > doors.water.y);
-
-        // Physics for local player
-        if (id === localId) updatePlayer(p);
-
-        // Wrong hazard → instant lasers for LASER_BARRAGE_MS (local only, rising edge)
         if (id === localId) {
             const wrong = isInWrongHazard(p);
             if (now >= laserBarrageEnd && wrong && !prevWrongHazard) {
@@ -249,27 +260,13 @@ function gameLoop() {
             prevWrongHazard = wrong;
         }
 
-        // Draw player (replace with sprite when ready)
         ctx.fillStyle = p.color;
         ctx.fillRect(p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
-        
-        
-        //if (p.color==='red') ctx.drawImage(fireImg, p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
-        //selse ctx.drawImage(waterImg, p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
-    }
-
-    // Camera follow
-    if (localId && players[localId]) {
-        const p = players[localId];
-        cameraX += ((p.x - canvas.width/2 + playerWidth/2) - cameraX) * 0.1;
-        cameraY += ((p.y - canvas.height/2 + playerHeight/2) - cameraY) * 0.1;
-        if (cameraX < 0) cameraX = 0;
-        if (cameraY < 0) cameraY = 0;
     }
 
     // Laser barrage: guns + bolts (world space)
     if (now < laserBarrageEnd && laserGuns.length) {
-        if (Math.random() < 0.22) spawnLaserBolt();
+        if (lasers.length < MAX_LASERS && Math.random() < 0.1) spawnLaserBolt();
 
         ctx.lineWidth = 2;
         for (const g of laserGuns) {
@@ -284,22 +281,18 @@ function gameLoop() {
         }
 
         const lp = localId ? players[localId] : null;
+        ctx.strokeStyle = 'rgba(255, 0, 220, 0.95)';
+        ctx.lineWidth = 3;
         for (let i = lasers.length - 1; i >= 0; i--) {
             const L = lasers[i];
             L.x += L.vx;
             L.y += L.vy;
             L.life--;
 
-            ctx.save();
-            ctx.strokeStyle = 'rgba(255, 0, 220, 0.95)';
-            ctx.lineWidth = 4;
-            ctx.shadowColor = '#ff00ff';
-            ctx.shadowBlur = 12;
             ctx.beginPath();
             ctx.moveTo(L.x - L.vx * 2.2 - cameraX, L.y - L.vy * 2.2 - cameraY);
             ctx.lineTo(L.x - cameraX, L.y - cameraY);
             ctx.stroke();
-            ctx.restore();
 
             if (lp && laserHitsPlayer(L, lp)) {
                 respawnPlayer(lp);
@@ -315,13 +308,15 @@ function gameLoop() {
         laserGuns = [];
     }
 
-    // Send local state
-    if (localId && players[localId]) {
+    // Send local state (30 Hz, not every frame)
+    if (localId && players[localId] && now - lastNetSend >= NET_SEND_MS) {
+        lastNetSend = now;
+        const lp = players[localId];
         socket.emit('move', {
-            x: players[localId].x,
-            y: players[localId].y,
-            velY: players[localId].velY,
-            onGround: players[localId].onGround
+            x: lp.x,
+            y: lp.y,
+            velY: lp.velY,
+            onGround: lp.onGround
         });
     }
 
