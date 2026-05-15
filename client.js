@@ -26,21 +26,24 @@ const playerHeight = 50;
 const gravity = 0.5;
 const jumpVelocity = -12 * Math.sqrt(1.2); // 20% higher jump
 
+const midStepY = (canvas.height - 120 + 350) / 2;
+const GROUND_LEFT_EXTEND = 400;
+
 // Platforms (you can add more)
 const platforms = [
-  {x:0, y:canvas.height - 50, w:canvas.width, h:50},
-  {x:200, y:450, w:200, h:20},
+  {x: -GROUND_LEFT_EXTEND, y: canvas.height - 50, w: canvas.width + GROUND_LEFT_EXTEND, h: 50},
+  {x:200, y:midStepY, w:200, h:20},
   {x:500, y:350, w:200, h:20},
-  {x:700, y:350, w:200, h:20},
+  {x:750, y:350, w:200, h:20},
   {x:120, y:canvas.height - 120, w:180, h:20},
   {x: canvas.width - 145, y: canvas.height - 420, w: 20, h: 370}
 ];
 
 // Hazards (fire & water)
 const hazards = [
-  {type:'fire', x:250, y:430, w:100, h:20},
+  {type:'fire', x:250, y:midStepY - 20, w:100, h:20},
   {type:'water', x:550, y:330, w:100, h:20},
-  {type:'fire', x:750, y:330, w:100, h:20}
+  {type:'fire', x:800, y:330, w:100, h:20}
 ];
 
 // Doors
@@ -285,7 +288,7 @@ function gameLoop() {
         const p = players[localId];
         cameraX += ((p.x - canvas.width / 2 + playerWidth / 2) - cameraX) * 0.15;
         cameraY += ((p.y - canvas.height / 2 + playerHeight / 2) - cameraY) * 0.15;
-        if (cameraX < 0) cameraX = 0;
+        if (cameraX < -GROUND_LEFT_EXTEND) cameraX = -GROUND_LEFT_EXTEND;
         if (cameraY < 0) cameraY = 0;
     }
 
