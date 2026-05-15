@@ -29,7 +29,9 @@ const gravity = 0.5;
 const platforms = [
   {x:0, y:canvas.height - 50, w:canvas.width, h:50},
   {x:200, y:450, w:200, h:20},
-  {x:500, y:350, w:200, h:20}
+  {x:500, y:350, w:200, h:20},
+  {x: canvas.width - 260, y: canvas.height - 220, w: 180, h: 20},
+  {x: canvas.width - 145, y: canvas.height - 280, w: 20, h: 230}
 ];
 
 // Hazards (fire & water)
