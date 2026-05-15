@@ -11,3 +11,90 @@ canvas {
   border: 2px solid #fff;
   background: #222;
 }
+.character-select {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(0, 0, 0, 0.92);
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+.character-select.hidden {
+  display: none;
+}
+.character-select h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+.character-select .subtitle {
+  margin: 0;
+  opacity: 0.75;
+}
+.character-select .choices {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+.character-select .choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 200px;
+  padding: 1.25rem 1rem;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  background: #1a1a1a;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.character-select .choice:hover:not(:disabled) {
+  transform: translateY(-4px);
+}
+.character-select .choice:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.character-select .choice.fire {
+  border-color: #e85d04;
+}
+.character-select .choice.fire:hover:not(:disabled) {
+  background: #2a1508;
+}
+.character-select .choice.water {
+  border-color: #00b4d8;
+}
+.character-select .choice.water:hover:not(:disabled) {
+  background: #081a22;
+}
+.character-select .swatch {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+}
+.character-select .choice.fire .swatch {
+  background: #e63946;
+}
+.character-select .choice.water .swatch {
+  background: #0077b6;
+}
+.character-select .hint {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  text-align: center;
+}
+.character-select .status {
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.95rem;
+  color: #ffb703;
+}

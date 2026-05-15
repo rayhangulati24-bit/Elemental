@@ -62,6 +62,62 @@ let lastNetSend = 0;
 
 // Local player ID
 let localId = null;
+let gameStarted = false;
+
+const characterSelect = document.getElementById('characterSelect');
+const pickFire = document.getElementById('pickFire');
+const pickWater = document.getElementById('pickWater');
+const selectStatus = document.getElementById('selectStatus');
+
+function updateCharacterSelectUI(state) {
+    if (!pickFire || !pickWater) return;
+    let fireTaken = false;
+    let waterTaken = false;
+    for (const id in state) {
+        if (id === localId) continue;
+        const el = state[id].element;
+        if (el === 'fire') fireTaken = true;
+        if (el === 'water') waterTaken = true;
+    }
+    pickFire.disabled = fireTaken;
+    pickWater.disabled = waterTaken;
+}
+
+function hideCharacterSelect() {
+    characterSelect?.classList.add('hidden');
+}
+
+pickFire?.addEventListener('click', () => {
+    selectStatus.textContent = '';
+    socket.emit('chooseCharacter', { element: 'fire' });
+});
+pickWater?.addEventListener('click', () => {
+    selectStatus.textContent = '';
+    socket.emit('chooseCharacter', { element: 'water' });
+});
+
+socket.on('chooseOk', ({ color, element }) => {
+    gameStarted = true;
+    hideCharacterSelect();
+    if (localId) {
+        const spawnX = element === 'fire' ? 100 : 600;
+        players[localId] = {
+            x: spawnX,
+            y: 400,
+            targetX: spawnX,
+            targetY: 400,
+            color,
+            element,
+            velY: 0,
+            onGround: false
+        };
+    }
+});
+
+socket.on('chooseFailed', ({ element }) => {
+    const label = element === 'fire' ? 'Fire' : 'Water';
+    selectStatus.textContent = `${label} was already chosen — pick the other element.`;
+});
 
 // Placeholder images for sprites (replace with your sprite sheets)
 const fireImg = new Image();
@@ -75,22 +131,32 @@ socket.on('init', id => {
 });
 
 socket.on('state', state => {
+    if (!gameStarted) updateCharacterSelectUI(state);
+
     for (let id in state) {
+        const s = state[id];
+        if (!s.color) {
+            delete players[id];
+            continue;
+        }
         if (!players[id]) {
             players[id] = {
-                x: state[id].x,
-                y: state[id].y,
-                targetX: state[id].x,
-                targetY: state[id].y,
-                color: id === localId ? 'red' : 'blue',
-                velY:0,
-                onGround:false
+                x: s.x,
+                y: s.y,
+                targetX: s.x,
+                targetY: s.y,
+                color: s.color,
+                element: s.element,
+                velY: s.velY,
+                onGround: s.onGround
             };
         } else if (id !== localId) {
-            players[id].targetX = state[id].x;
-            players[id].targetY = state[id].y;
-            players[id].velY = state[id].velY;
-            players[id].onGround = state[id].onGround;
+            players[id].targetX = s.x;
+            players[id].targetY = s.y;
+            players[id].velY = s.velY;
+            players[id].onGround = s.onGround;
+            players[id].color = s.color;
+            players[id].element = s.element;
         }
     }
 });
@@ -191,6 +257,11 @@ function updatePlayer(player) {
 // Game loop
 function gameLoop() {
     const now = performance.now();
+
+    if (!gameStarted) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
 
     // Physics + remote interpolation (before camera/draw)
     for (let id in players) {
@@ -309,7 +380,7 @@ function gameLoop() {
     }
 
     // Send local state (30 Hz, not every frame)
-    if (localId && players[localId] && now - lastNetSend >= NET_SEND_MS) {
+    if (gameStarted && localId && players[localId] && now - lastNetSend >= NET_SEND_MS) {
         lastNetSend = now;
         const lp = players[localId];
         socket.emit('move', {

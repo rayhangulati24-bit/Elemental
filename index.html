@@ -15,6 +15,23 @@ canvas {
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="characterSelect" class="character-select">
+    <h1>Choose your element</h1>
+    <p class="subtitle">Red = Fire · Blue = Water</p>
+    <div class="choices">
+        <button type="button" id="pickFire" class="choice fire">
+            <span class="swatch" aria-hidden="true"></span>
+            <strong>Fire</strong>
+            <span class="hint">Red player — safe on orange fire</span>
+        </button>
+        <button type="button" id="pickWater" class="choice water">
+            <span class="swatch" aria-hidden="true"></span>
+            <strong>Water</strong>
+            <span class="hint">Blue player — safe on cyan water</span>
+        </button>
+    </div>
+    <p id="selectStatus" class="status"></p>
+</div>
 <canvas id="gameCanvas" width="800" height="600"></canvas>
 <script src="/socket.io/socket.io.js"></script>
 <script src="client.js"></script>
