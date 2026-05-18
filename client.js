@@ -64,7 +64,7 @@ function buildWorld1() {
             { x: 500, y: 350, w: 200, h: 20 },
             { x: 820, y: 350, w: 200, h: 20 },
             { x: 120, y: h - 120, w: 180, h: 20 },
-            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370 }
+            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370, wall: true }
         ],
         hazards: [
             { type: 'fire', x: 250, y: midStepY - 20, w: 100, h: 20 },
@@ -90,7 +90,7 @@ function buildWorld2() {
             { x: 300, y: h - 240, w: 220, h: 20 },
             { x: 600, y: h - 340, w: 220, h: 20 },
             { x: 920, y: h - 340, w: 200, h: 20 },
-            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370 }
+            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370, wall: true }
         ],
         hazards: [
             { type: 'fire', x: 50, y: h - 160, w: 100, h: 20 },
@@ -361,10 +361,11 @@ function updatePlayer(player) {
     player.velY += gravity;
     player.y += player.velY;
 
-    // Platform collision
+    // Platform / wall collision
     player.onGround = false;
     const rect = {x: player.x, y: player.y, w: playerWidth, h: playerHeight};
     for (let plat of platforms) {
+        if (plat.wall) continue;
         if (rect.x < plat.x + plat.w && rect.x + rect.w > plat.x &&
             rect.y < plat.y + plat.h && rect.y + rect.h > plat.y &&
             player.velY >= 0) {
@@ -373,6 +374,38 @@ function updatePlayer(player) {
             player.onGround = true;
             rect.y = player.y;
         }
+    }
+    for (let wall of platforms) {
+        if (!wall.wall) continue;
+        if (rect.x >= wall.x + wall.w || rect.x + rect.w <= wall.x ||
+            rect.y >= wall.y + wall.h || rect.y + rect.h <= wall.y) continue;
+
+        const overlapLeft = rect.x + rect.w - wall.x;
+        const overlapRight = wall.x + wall.w - rect.x;
+        const overlapTop = rect.y + rect.h - wall.y;
+        const overlapBottom = wall.y + wall.h - rect.y;
+        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+        if (minOverlap === overlapTop && player.velY >= 0) {
+            const prevBottom = rect.y + rect.h - player.velY;
+            if (prevBottom <= wall.y + 12) {
+                player.y = wall.y - rect.h;
+                player.velY = 0;
+                player.onGround = true;
+                rect.y = player.y;
+                continue;
+            }
+        }
+        if (minOverlap === overlapLeft) {
+            player.x = wall.x - rect.w;
+        } else if (minOverlap === overlapRight) {
+            player.x = wall.x + wall.w;
+        } else if (minOverlap === overlapBottom) {
+            player.y = wall.y + wall.h;
+            player.velY = 0;
+            rect.y = player.y;
+        }
+        rect.x = player.x;
     }
 
     // Land on other players (treat their heads as a platform)
