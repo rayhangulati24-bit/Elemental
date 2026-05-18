@@ -397,11 +397,20 @@ function getLowestStep() {
     return platforms.find(p => p.lowestStep);
 }
 
-function playerOnPlatform(player, plat) {
+function playerOnPlatformAt(px, py, plat) {
     if (!plat) return false;
-    const feet = player.y + playerHeight;
-    return player.x < plat.x + plat.w && player.x + playerWidth > plat.x &&
-        feet >= plat.y - 4 && feet <= plat.y + 12;
+    const feet = py + playerHeight;
+    return px < plat.x + plat.w && px + playerWidth > plat.x &&
+        feet >= plat.y - 10 && feet <= plat.y + 18;
+}
+
+function playerOnPlatform(player, plat) {
+    return playerOnPlatformAt(player.x, player.y, plat);
+}
+
+function getPlayerCheckPos(p, id) {
+    if (id === localId) return { x: p.x, y: p.y };
+    return { x: p.targetX ?? p.x, y: p.targetY ?? p.y };
 }
 
 function updateWorld2LowStep() {
@@ -409,7 +418,8 @@ function updateWorld2LowStep() {
 
     const targetLift = fireAndWaterOverlapping() ? WORLD2_LOW_STEP_RISE : 0;
     const prevLift = world2LowStepLift;
-    world2LowStepLift += (targetLift - world2LowStepLift) * 0.07;
+    world2LowStepLift += (targetLift - world2LowStepLift) * 0.12;
+    if (Math.abs(targetLift - world2LowStepLift) < 0.5) world2LowStepLift = targetLift;
 
     const lowStep = getLowestStep();
     if (lowStep) lowStep.y = world2LowStepBaseY - world2LowStepLift;
@@ -438,9 +448,27 @@ function carryPlayersOnLowStep(liftDelta) {
 function anyPlayerOnPlatform(plat) {
     for (const id in players) {
         const p = players[id];
-        if (p.color && playerOnPlatform(p, plat)) return true;
+        if (!p.color) continue;
+        const pos = getPlayerCheckPos(p, id);
+        if (playerOnPlatformAt(pos.x, pos.y, plat)) return true;
     }
     return false;
+}
+
+function snapPlayerToPlatforms(player) {
+    if (currentWorld !== 2) return;
+
+    let surfaceY = null;
+    for (const plat of platforms) {
+        if (plat.wall) continue;
+        if (!playerOnPlatform(player, plat)) continue;
+        if (surfaceY === null || plat.y < surfaceY) surfaceY = plat.y;
+    }
+    if (surfaceY !== null) {
+        player.y = surfaceY - playerHeight;
+        player.velY = 0;
+        player.onGround = true;
+    }
 }
 
 function hazardOnPlatform(h, plat) {
@@ -547,16 +575,20 @@ function updatePlayer(player) {
     // Platform / wall collision
     player.onGround = false;
     const rect = {x: player.x, y: player.y, w: playerWidth, h: playerHeight};
+    let landPlat = null;
     for (let plat of platforms) {
         if (plat.wall) continue;
         if (rect.x < plat.x + plat.w && rect.x + rect.w > plat.x &&
             rect.y < plat.y + plat.h && rect.y + rect.h > plat.y &&
             player.velY >= 0) {
-            player.y = plat.y - rect.h;
-            player.velY = 0;
-            player.onGround = true;
-            rect.y = player.y;
+            if (!landPlat || plat.y < landPlat.y) landPlat = plat;
         }
+    }
+    if (landPlat) {
+        player.y = landPlat.y - rect.h;
+        player.velY = 0;
+        player.onGround = true;
+        rect.y = player.y;
     }
     for (let wall of platforms) {
         if (!wall.wall) continue;
@@ -635,6 +667,7 @@ function gameLoop() {
         p.id = id;
         if (id === localId) {
             updatePlayer(p);
+            snapPlayerToPlatforms(p);
         } else {
             p.x += (p.targetX - p.x) * 0.35;
             p.y += (p.targetY - p.y) * 0.35;
@@ -647,6 +680,7 @@ function gameLoop() {
 
     const lowStepLiftDelta = updateWorld2LowStep();
     carryPlayersOnLowStep(lowStepLiftDelta);
+    if (localId && players[localId]) snapPlayerToPlatforms(players[localId]);
     updateTemporarySteps(dt);
 
     // Camera follow (must run before drawing)
@@ -676,7 +710,7 @@ function gameLoop() {
         let alpha = 1;
         if (p.temporaryStep && stepTimers.has(p)) {
             const t = stepTimers.get(p);
-            if (t > 0) alpha = Math.max(0.25, 1 - (t / TEMP_STEP_MS) * 0.75);
+            if (t > 200) alpha = Math.max(0.4, 1 - ((t - 200) / (TEMP_STEP_MS - 200)) * 0.6);
         }
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.fillRect(p.x - cameraX, p.y - cameraY, p.w, p.h);
