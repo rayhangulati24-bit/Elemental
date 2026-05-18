@@ -59,9 +59,9 @@ let platforms = [];
 let hazards = [];
 let doors = {};
 let world2LowStepBaseY = null;
-let world2LowHazardBaseY = null;
 let world2LowStepLift = 0;
-const WORLD2_LOW_STEP_RISE = 110;
+const WORLD2_HIGH_Y = 90; // height of upper steps, doors, wall (very high)
+const WORLD2_LOW_STEP_RISE = (WORLD_H - 140 - STEP_LIFT) - WORLD2_HIGH_Y;
 const TEMP_STEP_MS = 4000;
 let stepTimers = new Map();
 let lastPhysicsTime = 0;
@@ -112,24 +112,24 @@ function buildWorld2() {
     const stepsRight = 920 + 200;
     const towardSteps = 0.2 * ((w - 145) - stepsRight);
     const lowStepBaseY = h - 140 - STEP_LIFT;
-    const raisedStepY = lowStepBaseY - WORLD2_LOW_STEP_RISE;
+    const raisedStepY = WORLD2_HIGH_Y;
     return {
         platforms: [
             { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND + 300, h: 50 },
-            { x: 0, y: lowStepBaseY, w: 220, h: 20, lowestStep: true, temporaryStep: true },
+            { x: 0, y: lowStepBaseY, w: 220, h: 20, lowestStep: true },
             { x: 300, y: raisedStepY, w: 220, h: 20, temporaryStep: true },
             { x: 600, y: raisedStepY, w: 220, h: 20, temporaryStep: true },
             { x: 920, y: raisedStepY, w: 200, h: 20, temporaryStep: true },
-            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370, wall: true }
+            { x: w - 145 - towardSteps, y: raisedStepY - 30, w: 20, h: 220, wall: true }
         ],
         hazards: [
-            { type: 'fire', x: 50, y: lowStepBaseY - 20, w: 100, h: 20, onLowestStep: true },
             { type: 'water', x: 360, y: raisedStepY - 20, w: 100, h: 20 },
+            { type: 'fire', x: 660, y: raisedStepY - 20, w: 100, h: 20 },
             { type: 'fire', x: 970, y: raisedStepY - 20, w: 100, h: 20 }
         ],
         doors: {
-            fire: { x: w - 120 - towardSteps, y: h - 100, w: 50, h: 70 },
-            water: { x: w - 60 - towardSteps, y: h - 100, w: 50, h: 70 }
+            fire: { x: w - 120 - towardSteps, y: raisedStepY - 20, w: 50, h: 70 },
+            water: { x: w - 60 - towardSteps, y: raisedStepY - 20, w: 50, h: 70 }
         }
     };
 }
@@ -145,14 +145,11 @@ function loadWorld(world) {
     currentWorld = world;
     world2LowStepLift = 0;
     world2LowStepBaseY = null;
-    world2LowHazardBaseY = null;
     stepTimers.clear();
     lastPhysicsTime = 0;
     if (world === 2) {
         const lowStep = platforms.find(p => p.lowestStep);
-        const lowHaz = hazards.find(h => h.onLowestStep);
         world2LowStepBaseY = lowStep?.y ?? null;
-        world2LowHazardBaseY = lowHaz?.y ?? null;
         for (const plat of platforms) {
             if (plat.temporaryStep) stepTimers.set(plat, 0);
         }
@@ -312,18 +309,19 @@ function drawImageCover(ctx, img, dx, dy, dw, dh) {
 function drawPlayerSprite(p) {
     const sx = p.x - cameraX;
     const sy = p.y - cameraY;
-    const halfH = playerHeight / 2;
+    const portraitH = playerHeight * 0.75;
+    const bodyH = playerHeight - portraitH;
 
     if (p.color === 'red' && firePortraitImg.complete && firePortraitImg.naturalWidth) {
         ctx.fillStyle = p.color;
-        ctx.fillRect(sx, sy + halfH, playerWidth, halfH);
-        drawImageCover(ctx, firePortraitImg, sx, sy, playerWidth, halfH);
+        ctx.fillRect(sx, sy + portraitH, playerWidth, bodyH);
+        drawImageCover(ctx, firePortraitImg, sx, sy, playerWidth, portraitH);
         return;
     }
     if (p.color === 'blue' && waterPortraitImg.complete && waterPortraitImg.naturalWidth) {
         ctx.fillStyle = p.color;
-        ctx.fillRect(sx, sy + halfH, playerWidth, halfH);
-        drawImageCover(ctx, waterPortraitImg, sx, sy, playerWidth, halfH);
+        ctx.fillRect(sx, sy + portraitH, playerWidth, bodyH);
+        drawImageCover(ctx, waterPortraitImg, sx, sy, playerWidth, portraitH);
         return;
     }
 
@@ -418,11 +416,7 @@ function updateWorld2LowStep() {
     world2LowStepLift += (targetLift - world2LowStepLift) * 0.07;
 
     const lowStep = getLowestStep();
-    const lowHaz = hazards.find(h => h.onLowestStep);
     if (lowStep) lowStep.y = world2LowStepBaseY - world2LowStepLift;
-    if (lowHaz && world2LowHazardBaseY != null) {
-        lowHaz.y = world2LowHazardBaseY - world2LowStepLift;
-    }
 
     return world2LowStepLift - prevLift;
 }
@@ -460,9 +454,7 @@ function hazardOnPlatform(h, plat) {
 function removeTemporaryStep(plat) {
     if (plat.lowestStep) {
         world2LowStepBaseY = null;
-        world2LowHazardBaseY = null;
         world2LowStepLift = 0;
-        hazards = hazards.filter(h => !h.onLowestStep);
     } else {
         hazards = hazards.filter(h => !hazardOnPlatform(h, plat));
     }
