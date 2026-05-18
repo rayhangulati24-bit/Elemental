@@ -367,6 +367,33 @@ function updatePlayer(player) {
             player.y = plat.y - rect.h;
             player.velY = 0;
             player.onGround = true;
+            rect.y = player.y;
+        }
+    }
+
+    // Land on other players (treat their heads as a platform)
+    if (player.velY >= 0) {
+        const prevBottom = rect.y + rect.h - player.velY;
+        let landSurfaceY = null;
+        for (const otherId in players) {
+            if (otherId === player.id) continue;
+            const other = players[otherId];
+            if (!other?.color) continue;
+
+            const ox = other.x;
+            const oy = other.y;
+            const ow = playerWidth;
+            const oh = playerHeight;
+            if (rect.x >= ox + ow || rect.x + rect.w <= ox) continue;
+            if (rect.y + rect.h <= oy || rect.y >= oy + oh) continue;
+            if (prevBottom > oy + 12) continue;
+
+            if (landSurfaceY === null || oy < landSurfaceY) landSurfaceY = oy;
+        }
+        if (landSurfaceY !== null) {
+            player.y = landSurfaceY - rect.h;
+            player.velY = 0;
+            player.onGround = true;
         }
     }
 
