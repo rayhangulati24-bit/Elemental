@@ -120,16 +120,12 @@ function buildWorld2() {
             { x: 300, y: raisedStepY, w: 220, h: 20, temporaryStep: true },
             { x: 600, y: raisedStepY, w: 220, h: 20, temporaryStep: true },
             { x: 920, y: raisedStepY, w: 200, h: 20, temporaryStep: true },
-            { x: w - 145 - towardSteps, y: raisedStepY - 30, w: 20, h: 220, wall: true }
+            { x: w - 140 - towardSteps, y: raisedStepY, w: 135, h: 20 }
         ],
-        hazards: [
-            { type: 'water', x: 360, y: raisedStepY - 20, w: 100, h: 20 },
-            { type: 'fire', x: 660, y: raisedStepY - 20, w: 100, h: 20 },
-            { type: 'fire', x: 970, y: raisedStepY - 20, w: 100, h: 20 }
-        ],
+        hazards: [],
         doors: {
-            fire: { x: w - 120 - towardSteps, y: raisedStepY - 20, w: 50, h: 70 },
-            water: { x: w - 60 - towardSteps, y: raisedStepY - 20, w: 50, h: 70 }
+            fire: { x: w - 120 - towardSteps, y: raisedStepY - 70, w: 50, h: 70 },
+            water: { x: w - 60 - towardSteps, y: raisedStepY - 70, w: 50, h: 70 }
         }
     };
 }
@@ -595,8 +591,8 @@ function updatePlayer(player) {
         rect.x = player.x;
     }
 
-    // Land on other players (treat their heads as a platform)
-    if (player.velY >= 0) {
+    // Land on other players (World 1 only — disabled in World 2)
+    if (currentWorld !== 2 && player.velY >= 0) {
         const prevBottom = rect.y + rect.h - player.velY;
         let landSurfaceY = null;
         for (const otherId in players) {
