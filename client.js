@@ -7,10 +7,30 @@ let cameraY = 0;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Fixed world size so every player sees the same layout
+const WORLD_W = 1280;
+const WORLD_H = 600;
+
+let viewScale = 1;
+let viewOffsetX = 0;
+let viewOffsetY = 0;
+
+function updateViewTransform() {
+    viewScale = Math.min(canvas.width / WORLD_W, canvas.height / WORLD_H);
+    viewOffsetX = (canvas.width - WORLD_W * viewScale) / 2;
+    viewOffsetY = (canvas.height - WORLD_H * viewScale) / 2;
+}
+
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    updateViewTransform();
 }
+
+function getViewSize() {
+    return { w: canvas.width / viewScale, h: canvas.height / viewScale };
+}
+
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
@@ -30,7 +50,7 @@ const GROUND_LEFT_EXTEND = 800;
 const FIRE_SPAWN_X = -GROUND_LEFT_EXTEND + 200;
 const WATER_SPAWN_X = -GROUND_LEFT_EXTEND + 450;
 function spawnY() {
-    return canvas.height - 50 - playerHeight;
+    return WORLD_H - 50 - playerHeight;
 }
 
 let currentWorld = 1;
@@ -52,8 +72,8 @@ const NET_SEND_MS = 1000 / 30;
 let lastNetSend = 0;
 
 function buildWorld1() {
-    const h = canvas.height;
-    const w = canvas.width;
+    const h = WORLD_H;
+    const w = WORLD_W;
     const midStepY = (h - 120 + 350) / 2;
     const stepsRight = 820 + 200;
     const towardSteps = 0.2 * ((w - 145) - stepsRight);
@@ -79,8 +99,8 @@ function buildWorld1() {
 }
 
 function buildWorld2() {
-    const h = canvas.height;
-    const w = canvas.width;
+    const h = WORLD_H;
+    const w = WORLD_W;
     const stepsRight = 920 + 200;
     const towardSteps = 0.2 * ((w - 145) - stepsRight);
     return {
@@ -459,10 +479,11 @@ function gameLoop() {
     }
 
     // Camera follow (must run before drawing)
+    const view = getViewSize();
     if (localId && players[localId]) {
         const p = players[localId];
-        cameraX += ((p.x - canvas.width / 2 + playerWidth / 2) - cameraX) * 0.15;
-        cameraY += ((p.y - canvas.height / 2 + playerHeight / 2) - cameraY) * 0.15;
+        cameraX += ((p.x - view.w / 2 + playerWidth / 2) - cameraX) * 0.15;
+        cameraY += ((p.y - view.h / 2 + playerHeight / 2) - cameraY) * 0.15;
         if (cameraX < -GROUND_LEFT_EXTEND) cameraX = -GROUND_LEFT_EXTEND;
         if (cameraY < 0) cameraY = 0;
     }
@@ -474,6 +495,10 @@ function gameLoop() {
     ctx.font = "20px Arial";
     ctx.fillText("Rayhan ❤️ Riya", 20, 30);
     ctx.fillText(`World ${currentWorld}`, 20, 55);
+
+    ctx.save();
+    ctx.translate(viewOffsetX, viewOffsetY);
+    ctx.scale(viewScale, viewScale);
 
     // Draw platforms
     ctx.fillStyle='white';
@@ -562,6 +587,8 @@ function gameLoop() {
         lasers = [];
         laserGuns = [];
     }
+
+    ctx.restore();
 
     // Send local state (30 Hz, not every frame)
     if (gameStarted && localId && players[localId] && now - lastNetSend >= NET_SEND_MS) {

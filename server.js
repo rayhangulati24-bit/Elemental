@@ -7,10 +7,12 @@ app.use(express.static(__dirname));
 
 const players = {};
 const elementTaken = { fire: null, water: null };
+const WORLD_H = 600;
+const PLAYER_HEIGHT = 50;
 const GROUND_LEFT_EXTEND = 800;
 const FIRE_SPAWN_X = -GROUND_LEFT_EXTEND + 200;
 const WATER_SPAWN_X = -GROUND_LEFT_EXTEND + 450;
-const SPAWN_Y = 400;
+const SPAWN_Y = WORLD_H - 50 - PLAYER_HEIGHT;
 
 let currentWorld = 1;
 
