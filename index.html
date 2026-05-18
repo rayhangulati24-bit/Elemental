@@ -34,15 +34,17 @@ canvas {
 </div>
 <canvas id="gameCanvas" width="800" height="600"></canvas>
 <div id="gameControls" class="game-controls" hidden>
-    <button type="button" id="backBtn" class="control-btn back-btn" aria-label="Move backward">
-        <img src="chevron-icon.png" alt="" width="56" height="56">
-    </button>
     <button type="button" id="jumpBtn" class="control-btn" aria-label="Jump">
-        <img src="chevron-icon.png" alt="" width="56" height="56">
+        <img src="chevron-icon.png" alt="" width="73" height="73">
     </button>
-    <button type="button" id="moveBtn" class="control-btn move-btn" aria-label="Move forward">
-        <img src="chevron-icon.png" alt="" width="56" height="56">
-    </button>
+    <div class="move-controls">
+        <button type="button" id="backBtn" class="control-btn back-btn" aria-label="Move backward">
+            <img src="chevron-icon.png" alt="" width="73" height="73">
+        </button>
+        <button type="button" id="moveBtn" class="control-btn move-btn" aria-label="Move forward">
+            <img src="chevron-icon.png" alt="" width="73" height="73">
+        </button>
+    </div>
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="client.js"></script>
