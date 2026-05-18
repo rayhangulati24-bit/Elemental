@@ -10,6 +10,7 @@ const ctx = canvas.getContext('2d');
 // Fixed world size so every player sees the same layout
 const WORLD_W = 1280;
 const WORLD_H = 600;
+const STEP_LIFT = 80; // how much higher (px) floating steps sit
 
 let viewScale = 1;
 let viewOffsetX = 0;
@@ -57,6 +58,13 @@ let currentWorld = 1;
 let platforms = [];
 let hazards = [];
 let doors = {};
+let world2LowStepBaseY = null;
+let world2LowHazardBaseY = null;
+let world2LowStepLift = 0;
+const WORLD2_LOW_STEP_RISE = 110;
+const TEMP_STEP_MS = 4000;
+let stepTimers = new Map();
+let lastPhysicsTime = 0;
 let worldTransitionUntil = 0;
 let fireAtDoor = false;
 let waterAtDoor = false;
@@ -74,22 +82,22 @@ let lastNetSend = 0;
 function buildWorld1() {
     const h = WORLD_H;
     const w = WORLD_W;
-    const midStepY = (h - 120 + 350) / 2;
+    const midStepY = (h - 120 + 350) / 2 - STEP_LIFT;
     const stepsRight = 820 + 200;
     const towardSteps = 0.2 * ((w - 145) - stepsRight);
     return {
         platforms: [
             { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND, h: 50 },
             { x: 200, y: midStepY, w: 200, h: 20 },
-            { x: 500, y: 350, w: 200, h: 20 },
-            { x: 820, y: 350, w: 200, h: 20 },
-            { x: 120, y: h - 120, w: 180, h: 20 },
+            { x: 500, y: 350 - STEP_LIFT, w: 200, h: 20 },
+            { x: 820, y: 350 - STEP_LIFT, w: 200, h: 20 },
+            { x: 120, y: h - 120 - STEP_LIFT, w: 180, h: 20 },
             { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370, wall: true }
         ],
         hazards: [
             { type: 'fire', x: 250, y: midStepY - 20, w: 100, h: 20 },
-            { type: 'water', x: 550, y: 330, w: 100, h: 20 },
-            { type: 'fire', x: 870, y: 330, w: 100, h: 20 }
+            { type: 'water', x: 550, y: 330 - STEP_LIFT, w: 100, h: 20 },
+            { type: 'fire', x: 870, y: 330 - STEP_LIFT, w: 100, h: 20 }
         ],
         doors: {
             fire: { x: w - 120 - towardSteps, y: h - 100, w: 50, h: 70 },
@@ -103,19 +111,21 @@ function buildWorld2() {
     const w = WORLD_W;
     const stepsRight = 920 + 200;
     const towardSteps = 0.2 * ((w - 145) - stepsRight);
+    const lowStepBaseY = h - 140 - STEP_LIFT;
+    const raisedStepY = lowStepBaseY - WORLD2_LOW_STEP_RISE;
     return {
         platforms: [
             { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND + 300, h: 50 },
-            { x: 0, y: h - 140, w: 220, h: 20 },
-            { x: 300, y: h - 240, w: 220, h: 20 },
-            { x: 600, y: h - 340, w: 220, h: 20 },
-            { x: 920, y: h - 340, w: 200, h: 20 },
+            { x: 0, y: lowStepBaseY, w: 220, h: 20, lowestStep: true, temporaryStep: true },
+            { x: 300, y: raisedStepY, w: 220, h: 20, temporaryStep: true },
+            { x: 600, y: raisedStepY, w: 220, h: 20, temporaryStep: true },
+            { x: 920, y: raisedStepY, w: 200, h: 20, temporaryStep: true },
             { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370, wall: true }
         ],
         hazards: [
-            { type: 'fire', x: 50, y: h - 160, w: 100, h: 20 },
-            { type: 'water', x: 360, y: h - 260, w: 100, h: 20 },
-            { type: 'fire', x: 970, y: h - 360, w: 100, h: 20 }
+            { type: 'fire', x: 50, y: lowStepBaseY - 20, w: 100, h: 20, onLowestStep: true },
+            { type: 'water', x: 360, y: raisedStepY - 20, w: 100, h: 20 },
+            { type: 'fire', x: 970, y: raisedStepY - 20, w: 100, h: 20 }
         ],
         doors: {
             fire: { x: w - 120 - towardSteps, y: h - 100, w: 50, h: 70 },
@@ -133,6 +143,20 @@ function loadWorld(world) {
         worldTransitionUntil = performance.now() + 2500;
     }
     currentWorld = world;
+    world2LowStepLift = 0;
+    world2LowStepBaseY = null;
+    world2LowHazardBaseY = null;
+    stepTimers.clear();
+    lastPhysicsTime = 0;
+    if (world === 2) {
+        const lowStep = platforms.find(p => p.lowestStep);
+        const lowHaz = hazards.find(h => h.onLowestStep);
+        world2LowStepBaseY = lowStep?.y ?? null;
+        world2LowHazardBaseY = lowHaz?.y ?? null;
+        for (const plat of platforms) {
+            if (plat.temporaryStep) stepTimers.set(plat, 0);
+        }
+    }
     cameraX = 0;
     cameraY = 0;
     lasers = [];
@@ -257,11 +281,55 @@ socket.on('chooseFailed', ({ element }) => {
     selectStatus.textContent = `${label} was already chosen — pick the other element.`;
 });
 
-// Placeholder images for sprites (replace with your sprite sheets)
+const firePortraitImg = new Image();
+firePortraitImg.src = 'fire-portrait.png';
+const waterPortraitImg = new Image();
+waterPortraitImg.src = 'water-portrait.png';
+
 const fireImg = new Image();
-fireImg.src = "fire_sprites.png"; // your fire sprite sheet
+fireImg.src = "fire_sprites.png";
 const waterImg = new Image();
-waterImg.src = "water_sprites.png"; // your water sprite sheet
+waterImg.src = "water_sprites.png";
+
+function drawImageCover(ctx, img, dx, dy, dw, dh) {
+    const imgAspect = img.naturalWidth / img.naturalHeight;
+    const boxAspect = dw / dh;
+    let sw, sh, sx, sy;
+    if (imgAspect > boxAspect) {
+        sh = img.naturalHeight;
+        sw = sh * boxAspect;
+        sx = (img.naturalWidth - sw) / 2;
+        sy = 0;
+    } else {
+        sw = img.naturalWidth;
+        sh = sw / boxAspect;
+        sx = 0;
+        sy = 0;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+
+function drawPlayerSprite(p) {
+    const sx = p.x - cameraX;
+    const sy = p.y - cameraY;
+    const halfH = playerHeight / 2;
+
+    if (p.color === 'red' && firePortraitImg.complete && firePortraitImg.naturalWidth) {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(sx, sy + halfH, playerWidth, halfH);
+        drawImageCover(ctx, firePortraitImg, sx, sy, playerWidth, halfH);
+        return;
+    }
+    if (p.color === 'blue' && waterPortraitImg.complete && waterPortraitImg.naturalWidth) {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(sx, sy + halfH, playerWidth, halfH);
+        drawImageCover(ctx, waterPortraitImg, sx, sy, playerWidth, halfH);
+        return;
+    }
+
+    ctx.fillStyle = p.color;
+    ctx.fillRect(sx, sy, playerWidth, playerHeight);
+}
 
 // Socket events
 socket.on('init', id => {
@@ -313,6 +381,113 @@ socket.on('state', payload => {
 
 function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function fireAndWaterOverlapping() {
+    let fire = null;
+    let water = null;
+    for (const id in players) {
+        const p = players[id];
+        if (!p.color) continue;
+        if (p.color === 'red') fire = p;
+        if (p.color === 'blue') water = p;
+    }
+    if (!fire || !water) return false;
+    return rectsOverlap(
+        fire.x, fire.y, playerWidth, playerHeight,
+        water.x, water.y, playerWidth, playerHeight
+    );
+}
+
+function getLowestStep() {
+    return platforms.find(p => p.lowestStep);
+}
+
+function playerOnPlatform(player, plat) {
+    if (!plat) return false;
+    const feet = player.y + playerHeight;
+    return player.x < plat.x + plat.w && player.x + playerWidth > plat.x &&
+        feet >= plat.y - 4 && feet <= plat.y + 12;
+}
+
+function updateWorld2LowStep() {
+    if (currentWorld !== 2 || world2LowStepBaseY == null) return 0;
+
+    const targetLift = fireAndWaterOverlapping() ? WORLD2_LOW_STEP_RISE : 0;
+    const prevLift = world2LowStepLift;
+    world2LowStepLift += (targetLift - world2LowStepLift) * 0.07;
+
+    const lowStep = getLowestStep();
+    const lowHaz = hazards.find(h => h.onLowestStep);
+    if (lowStep) lowStep.y = world2LowStepBaseY - world2LowStepLift;
+    if (lowHaz && world2LowHazardBaseY != null) {
+        lowHaz.y = world2LowHazardBaseY - world2LowStepLift;
+    }
+
+    return world2LowStepLift - prevLift;
+}
+
+function carryPlayersOnLowStep(liftDelta) {
+    if (!liftDelta) return;
+    const lowStep = getLowestStep();
+    if (!lowStep) return;
+
+    for (const id in players) {
+        const p = players[id];
+        if (!p.color) continue;
+        if (playerOnPlatform(p, lowStep)) {
+            p.y -= liftDelta;
+            if (id === localId) {
+                p.velY = 0;
+                p.onGround = true;
+            }
+        }
+    }
+}
+
+function anyPlayerOnPlatform(plat) {
+    for (const id in players) {
+        const p = players[id];
+        if (p.color && playerOnPlatform(p, plat)) return true;
+    }
+    return false;
+}
+
+function hazardOnPlatform(h, plat) {
+    return rectsOverlap(h.x, h.y, h.w, h.h, plat.x, plat.y - 24, plat.w, plat.h + 24);
+}
+
+function removeTemporaryStep(plat) {
+    if (plat.lowestStep) {
+        world2LowStepBaseY = null;
+        world2LowHazardBaseY = null;
+        world2LowStepLift = 0;
+        hazards = hazards.filter(h => !h.onLowestStep);
+    } else {
+        hazards = hazards.filter(h => !hazardOnPlatform(h, plat));
+    }
+    platforms = platforms.filter(p => p !== plat);
+    stepTimers.delete(plat);
+}
+
+function updateTemporarySteps(dt) {
+    if (currentWorld !== 2) return;
+
+    const toRemove = [];
+    for (const [plat, elapsed] of stepTimers) {
+        if (!platforms.includes(plat)) {
+            stepTimers.delete(plat);
+            continue;
+        }
+        if (anyPlayerOnPlatform(plat)) {
+            const next = elapsed + dt;
+            stepTimers.set(plat, next);
+            if (next >= TEMP_STEP_MS) toRemove.push(plat);
+        } else {
+            stepTimers.set(plat, 0);
+        }
+    }
+    for (const plat of toRemove) removeTemporaryStep(plat);
 }
 
 function isInWrongHazard(player) {
@@ -478,6 +653,14 @@ function gameLoop() {
         }
     }
 
+    if (!lastPhysicsTime) lastPhysicsTime = now;
+    const dt = Math.min(now - lastPhysicsTime, 50);
+    lastPhysicsTime = now;
+
+    const lowStepLiftDelta = updateWorld2LowStep();
+    carryPlayersOnLowStep(lowStepLiftDelta);
+    updateTemporarySteps(dt);
+
     // Camera follow (must run before drawing)
     const view = getViewSize();
     if (localId && players[localId]) {
@@ -501,8 +684,15 @@ function gameLoop() {
     ctx.scale(viewScale, viewScale);
 
     // Draw platforms
-    ctx.fillStyle='white';
-    for (let p of platforms) ctx.fillRect(p.x - cameraX, p.y - cameraY, p.w, p.h);
+    for (let p of platforms) {
+        let alpha = 1;
+        if (p.temporaryStep && stepTimers.has(p)) {
+            const t = stepTimers.get(p);
+            if (t > 0) alpha = Math.max(0.25, 1 - (t / TEMP_STEP_MS) * 0.75);
+        }
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.fillRect(p.x - cameraX, p.y - cameraY, p.w, p.h);
+    }
 
     // Draw hazards
     for (let h of hazards) {
@@ -540,8 +730,7 @@ function gameLoop() {
             prevWrongHazard = wrong;
         }
 
-        ctx.fillStyle = p.color;
-        ctx.fillRect(p.x - cameraX, p.y - cameraY, playerWidth, playerHeight);
+        drawPlayerSprite(p);
     }
 
     // Laser barrage: guns + bolts (world space)
