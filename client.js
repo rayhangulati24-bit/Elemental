@@ -157,12 +157,17 @@ function updateCharacterSelectUI(state) {
     pickWater.disabled = waterTaken;
 }
 
+const gameControls = document.getElementById('gameControls');
 const jumpBtn = document.getElementById('jumpBtn');
+const backBtn = document.getElementById('backBtn');
+const moveBtn = document.getElementById('moveBtn');
+let moveBackwardActive = false;
+let moveForwardActive = false;
 
 function hideCharacterSelect() {
     characterSelect?.classList.add('hidden');
     canvas.classList.remove('selecting');
-    jumpBtn?.removeAttribute('hidden');
+    gameControls?.removeAttribute('hidden');
 }
 
 function tryJump(player) {
@@ -177,6 +182,21 @@ jumpBtn?.addEventListener('pointerdown', e => {
     if (!gameStarted || !localId || !players[localId]) return;
     tryJump(players[localId]);
 });
+
+function setupHoldButton(btn, setActive) {
+    btn?.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (!gameStarted) return;
+        setActive(true);
+        btn.setPointerCapture(e.pointerId);
+    });
+    btn?.addEventListener('pointerup', () => setActive(false));
+    btn?.addEventListener('pointercancel', () => setActive(false));
+    btn?.addEventListener('lostpointercapture', () => setActive(false));
+}
+
+setupHoldButton(backBtn, active => { moveBackwardActive = active; });
+setupHoldButton(moveBtn, active => { moveForwardActive = active; });
 
 pickFire?.addEventListener('click', () => {
     selectStatus.textContent = '';
@@ -327,8 +347,8 @@ function laserHitsPlayer(l, player) {
 // Player physics
 function updatePlayer(player) {
     if (player.id === localId) {
-        if (keys['ArrowLeft'] || keys['a']) player.x -= 5;
-        if (keys['ArrowRight'] || keys['d']) player.x += 5;
+        if (keys['ArrowLeft'] || keys['a'] || moveBackwardActive) player.x -= 5;
+        if (keys['ArrowRight'] || keys['d'] || moveForwardActive) player.x += 5;
         if ((keys['ArrowUp'] || keys['w']) && player.onGround) {
             tryJump(player);
         }
