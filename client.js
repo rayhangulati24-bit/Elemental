@@ -157,10 +157,26 @@ function updateCharacterSelectUI(state) {
     pickWater.disabled = waterTaken;
 }
 
+const jumpBtn = document.getElementById('jumpBtn');
+
 function hideCharacterSelect() {
     characterSelect?.classList.add('hidden');
     canvas.classList.remove('selecting');
+    jumpBtn?.removeAttribute('hidden');
 }
+
+function tryJump(player) {
+    if (player.onGround) {
+        player.velY = jumpVelocity;
+        player.onGround = false;
+    }
+}
+
+jumpBtn?.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (!gameStarted || !localId || !players[localId]) return;
+    tryJump(players[localId]);
+});
 
 pickFire?.addEventListener('click', () => {
     selectStatus.textContent = '';
@@ -314,8 +330,7 @@ function updatePlayer(player) {
         if (keys['ArrowLeft'] || keys['a']) player.x -= 5;
         if (keys['ArrowRight'] || keys['d']) player.x += 5;
         if ((keys['ArrowUp'] || keys['w']) && player.onGround) {
-            player.velY = jumpVelocity;
-            player.onGround = false;
+            tryJump(player);
         }
     }
 
