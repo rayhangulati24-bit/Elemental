@@ -55,6 +55,8 @@ function buildWorld1() {
     const h = canvas.height;
     const w = canvas.width;
     const midStepY = (h - 120 + 350) / 2;
+    const stepsRight = 820 + 200;
+    const towardSteps = 0.2 * ((w - 145) - stepsRight);
     return {
         platforms: [
             { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND, h: 50 },
@@ -62,7 +64,7 @@ function buildWorld1() {
             { x: 500, y: 350, w: 200, h: 20 },
             { x: 820, y: 350, w: 200, h: 20 },
             { x: 120, y: h - 120, w: 180, h: 20 },
-            { x: w - 145, y: h - 420, w: 20, h: 370 }
+            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370 }
         ],
         hazards: [
             { type: 'fire', x: 250, y: midStepY - 20, w: 100, h: 20 },
@@ -70,8 +72,8 @@ function buildWorld1() {
             { type: 'fire', x: 870, y: 330, w: 100, h: 20 }
         ],
         doors: {
-            fire: { x: w - 120, y: h - 100, w: 50, h: 70 },
-            water: { x: w - 60, y: h - 100, w: 50, h: 70 }
+            fire: { x: w - 120 - towardSteps, y: h - 100, w: 50, h: 70 },
+            water: { x: w - 60 - towardSteps, y: h - 100, w: 50, h: 70 }
         }
     };
 }
@@ -79,6 +81,8 @@ function buildWorld1() {
 function buildWorld2() {
     const h = canvas.height;
     const w = canvas.width;
+    const stepsRight = 920 + 200;
+    const towardSteps = 0.2 * ((w - 145) - stepsRight);
     return {
         platforms: [
             { x: -GROUND_LEFT_EXTEND, y: h - 50, w: w + GROUND_LEFT_EXTEND + 300, h: 50 },
@@ -86,7 +90,7 @@ function buildWorld2() {
             { x: 300, y: h - 240, w: 220, h: 20 },
             { x: 600, y: h - 340, w: 220, h: 20 },
             { x: 920, y: h - 340, w: 200, h: 20 },
-            { x: w - 145, y: h - 420, w: 20, h: 370 }
+            { x: w - 145 - towardSteps, y: h - 420, w: 20, h: 370 }
         ],
         hazards: [
             { type: 'fire', x: 50, y: h - 160, w: 100, h: 20 },
@@ -94,8 +98,8 @@ function buildWorld2() {
             { type: 'fire', x: 970, y: h - 360, w: 100, h: 20 }
         ],
         doors: {
-            fire: { x: w - 120, y: h - 100, w: 50, h: 70 },
-            water: { x: w - 60, y: h - 100, w: 50, h: 70 }
+            fire: { x: w - 120 - towardSteps, y: h - 100, w: 50, h: 70 },
+            water: { x: w - 60 - towardSteps, y: h - 100, w: 50, h: 70 }
         }
     };
 }
